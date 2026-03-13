@@ -1,0 +1,2 @@
+/* Minimal reset — all real styles live in App.css */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
