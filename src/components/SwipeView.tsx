@@ -63,6 +63,11 @@ function getSwipeDir(x: number, y: number): 'yes' | 'no' | 'maybe' | null {
   return null
 }
 
+function getMiddlePositionMs(durationMs: number): number {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 0
+  return Math.max(0, Math.floor(durationMs / 2))
+}
+
 export function SwipeView() {
   const session = useAppStore((s) => s.session)
   const swipe = useAppStore((s) => s.swipe)
@@ -186,7 +191,7 @@ export function SwipeView() {
     }
   }, [])
 
-  const playWithSdk = useCallback(async (uri: string) => {
+  const playWithSdk = useCallback(async (uri: string, positionMs: number) => {
     const deviceId = sdkDeviceIdRef.current
     if (!deviceId) return
 
@@ -207,7 +212,7 @@ export function SwipeView() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ uris: [uri], position_ms: 0 }),
+        body: JSON.stringify({ uris: [uri], position_ms: positionMs }),
       })
       setPreviewBlocked(false)
     } catch {
@@ -225,15 +230,21 @@ export function SwipeView() {
     if (!topSong?.previewUrl || session?.muted) {
       audio.src = ''
       if (!session?.muted && topSong?.uri && sdkReady) {
-        void playWithSdk(topSong.uri)
+        void playWithSdk(topSong.uri, getMiddlePositionMs(topSong.durationMs))
       }
       return
     }
 
+    const onLoadedMetadata = () => {
+      const midpointSeconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration / 2 : 15
+      audio.currentTime = midpointSeconds
+      void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
+    }
+
+    audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true })
     audio.src = topSong.previewUrl
-    audio.currentTime = 0
-    void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
-  }, [topSong?.id, topSong?.previewUrl, topSong?.uri, session?.muted, sdkReady, playWithSdk])
+    audio.load()
+  }, [topSong?.id, topSong?.previewUrl, topSong?.uri, topSong?.durationMs, session?.muted, sdkReady, playWithSdk])
 
   useEffect(() => {
     if (!session?.muted) return
@@ -247,9 +258,21 @@ export function SwipeView() {
     if (!audio || !topSong?.previewUrl) return
     if (audio.src !== topSong.previewUrl) {
       audio.src = topSong.previewUrl
-      audio.currentTime = 0
     }
-    void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
+
+    const startAtMiddleAndPlay = () => {
+      const midpointSeconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration / 2 : 15
+      audio.currentTime = midpointSeconds
+      void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
+    }
+
+    if (Number.isFinite(audio.duration) && audio.duration > 0) {
+      startAtMiddleAndPlay()
+      return
+    }
+
+    audio.addEventListener('loadedmetadata', startAtMiddleAndPlay, { once: true })
+    audio.load()
   }
 
   const handleCancel = () => {
