@@ -99,6 +99,29 @@ body {
   flex-direction: column;
   gap: 8px;
 }
+.progress-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  backdrop-filter: blur(2px);
+}
+.progress-modal {
+  width: min(92vw, 420px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.progress-modal h3 {
+  font-size: 16px;
+}
 .progress-track {
   height: 8px;
   background: var(--surface-2);

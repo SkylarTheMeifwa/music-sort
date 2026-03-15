@@ -303,15 +303,6 @@ export function ImportScreen() {
         Swipe songs into Yes / Maybe / No to build the perfect playlist.
       </p>
 
-      {loading && (
-        <div className="import-progress">
-          <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={loadingProgress ?? 0}>
-            <div className="progress-fill" style={{ width: `${loadingProgress ?? 0}%` }} />
-          </div>
-          <p className="helper-text">{loadingLabel}</p>
-        </div>
-      )}
-
       {authError && (
         <div className="auth-error-banner">
           <span>{authError}</span>
@@ -481,6 +472,19 @@ export function ImportScreen() {
           >
             Log out of Spotify
           </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="progress-modal-backdrop" role="presentation">
+          <section className="progress-modal" role="dialog" aria-modal="true" aria-label="Import progress">
+            <h3>Importing Songs</h3>
+            <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={loadingProgress ?? 0}>
+              <div className="progress-fill" style={{ width: `${loadingProgress ?? 0}%` }} />
+            </div>
+            <p className="helper-text">{loadingLabel}</p>
+            <p className="helper-text">{loadingProgress ?? 0}%</p>
+          </section>
         </div>
       )}
     </section>

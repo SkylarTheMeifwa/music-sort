@@ -606,11 +606,52 @@ export async function fetchTracksByIds(
     return songs
   } catch (err) {
     if (err instanceof Error && /Spotify access was denied|Spotify API request failed: 403/i.test(err.message)) {
-      // Fallback path for environments where /tracks is denied: use public oEmbed metadata.
-      return fetchTracksByIdsViaOEmbed(trackIds, onProgress)
+      // Fallback path for environments where /tracks batch lookup is denied.
+      // First try per-track API calls (full metadata), then oEmbed for any misses.
+      return fetchTracksByIdsOneByOne(token, trackIds, onProgress)
     }
     throw err
   }
+}
+
+async function fetchTracksByIdsOneByOne(
+  token: string,
+  trackIds: string[],
+  onProgress?: (completedBatches: number, totalBatches: number) => void,
+): Promise<SongCardData[]> {
+  const songs: SongCardData[] = []
+  const missingIds: string[] = []
+  const total = Math.max(1, trackIds.length)
+  let completed = 0
+
+  for (const trackId of trackIds) {
+    try {
+      const track = await spotifyFetch<SpotifyTrack | null>(token, `/tracks/${trackId}?market=from_token`)
+      if (track?.id) {
+        songs.push(toSongCardData(track, songs.length))
+      } else {
+        missingIds.push(trackId)
+      }
+    } catch {
+      missingIds.push(trackId)
+    }
+
+    completed += 1
+    onProgress?.(completed, total)
+  }
+
+  if (missingIds.length > 0) {
+    const oembedSongs = await fetchTracksByIdsViaOEmbed(missingIds, (oembedCompleted, oembedTotal) => {
+      const normalized = oembedTotal > 0 ? oembedCompleted / oembedTotal : 0
+      const aggregateCompleted = Math.min(total, completed + Math.round(normalized * missingIds.length))
+      onProgress?.(aggregateCompleted, total)
+    })
+    for (const song of oembedSongs) {
+      songs.push({ ...song, id: `${song.uri.split(':').pop() || song.id}_${songs.length}` })
+    }
+  }
+
+  return songs
 }
 
 async function fetchTracksByIdsViaOEmbed(
