@@ -3,7 +3,7 @@
    Cache-first for app shell, network-first for Spotify API requests.
    ────────────────────────────────────────────────────────────────────────── */
 
-const CACHE = 'music-sort-v1'
+const CACHE = 'music-sort-v2'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -29,16 +29,28 @@ self.addEventListener('fetch', (event) => {
   // Skip cross-origin requests (Spotify API, CDNs) — let them go to network
   if (url.origin !== self.location.origin) return
 
+  // Never cache auth callbacks; these carry one-time OAuth params.
+  if (url.searchParams.has('code') || url.searchParams.has('state')) return
+
+  const isNavigation = event.request.mode === 'navigate'
+  const isStaticAsset = /\.(js|css|png|jpg|jpeg|svg|webp|ico|json|woff2?)$/i.test(url.pathname)
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached
-      return fetch(event.request).then((response) => {
-        if (response.ok) {
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok && (isNavigation || isStaticAsset)) {
           const clone = response.clone()
           caches.open(CACHE).then((cache) => cache.put(event.request, clone))
         }
         return response
       })
-    }),
+      .catch(() =>
+        caches.match(event.request).then((cached) => {
+          if (cached) return cached
+          return isNavigation
+            ? caches.match(`${self.registration.scope}index.html`)
+            : Response.error()
+        }),
+      ),
   )
 })
