@@ -40,7 +40,7 @@ export function ImportScreen() {
     try {
       const token = await getValidAccessToken()
       const items = await fetchUserPlaylists(token)
-      setPlaylists(items.map((p) => ({ id: p.id, name: p.name, total: p.tracks.total })))
+      setPlaylists(items.map((p) => ({ id: p.id, name: p.name, total: p.tracks?.total ?? 0 })))
       setIsAuthenticated(true)
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Failed to load playlists.')

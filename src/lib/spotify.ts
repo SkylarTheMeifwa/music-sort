@@ -253,7 +253,7 @@ export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist
       next: string | null
     }>(token, nextEndpoint)
 
-    playlists.push(...page.items)
+    playlists.push(...page.items.filter((p) => p != null && p.tracks != null))
 
     if (!page.next) {
       nextEndpoint = ''
