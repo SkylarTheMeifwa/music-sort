@@ -144,6 +144,10 @@ body {
   transition: border-color 0.2s;
 }
 .id-input:focus { border-color: var(--green); }
+.helper-text {
+  color: var(--text-muted);
+  font-size: 12px;
+}
 .target-row {
   display: flex;
   align-items: center;

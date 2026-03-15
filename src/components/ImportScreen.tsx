@@ -44,11 +44,13 @@ export function ImportScreen() {
   const [playlists, setPlaylists] = useState<PlaylistOption[]>([])
   const [selectedPlaylistId, setSelectedPlaylistId] = useState('')
   const [manualInput, setManualInput] = useState('')
+  const [manualTrackInput, setManualTrackInput] = useState('')
   const [targetMinutes, setTargetMinutes] = useState('60')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [account, setAccount] = useState<AccountSummary | null>(null)
   const [grantedScope, setGrantedScope] = useState('')
+  const parsedTrackIds = extractSpotifyTrackIds(manualTrackInput)
 
   const loadPlaylists = useCallback(async () => {
     try {
@@ -116,53 +118,16 @@ export function ImportScreen() {
   const handleLoadPlaylist = async () => {
     setError('')
     const derivedId = extractSpotifyPlaylistId(manualInput)
-    const trackIds = extractSpotifyTrackIds(manualInput)
     const playlistId = selectedPlaylistId || derivedId
 
-    if (!playlistId && trackIds.length === 0) {
-      setError('Choose a playlist, paste a Spotify playlist URL/ID, or paste Spotify track IDs/URLs.')
+    if (!playlistId) {
+      setError('Choose a playlist from the list or paste a Spotify playlist URL/ID.')
       return
     }
 
     setLoading(true)
     try {
       const token = await getValidAccessToken()
-
-      if (!selectedPlaylistId && !derivedId && trackIds.length > 0) {
-        const tracks = await fetchTracksByIds(token, trackIds)
-
-        if (tracks.length === 0) {
-          setError('No valid Spotify tracks were found in the pasted IDs/URLs.')
-          return
-        }
-
-        const songs = Object.fromEntries(
-          tracks.map((track) => [track.id, { ...track, status: 'unknown' as const }]),
-        )
-        const songOrder = tracks.map((track) => track.id)
-        const targetMs = parseMinutesToMs(targetMinutes)
-
-        const newSession: SessionState = {
-          playlistId: MANUAL_TRACKS_SOURCE_ID,
-          playlistName: `Imported Tracks (${tracks.length})`,
-          sourceType: 'tracks',
-          pass: 1,
-          queueIndex: 0,
-          passQueueIds: [...songOrder],
-          targetMs,
-          muted: false,
-          songOrder,
-          songs,
-          history: [],
-        }
-        startSession(newSession)
-        return
-      }
-
-      if (!playlistId) {
-        setError('Choose a playlist, paste a Spotify playlist URL/ID, or paste Spotify track IDs/URLs.')
-        return
-      }
 
       const playlist = await fetchPlaylistWithTracks(token, playlistId)
       const tracks = playlist.tracks
@@ -196,11 +161,56 @@ export function ImportScreen() {
       if (err instanceof Error && /denied access to this playlist's tracks|Spotify API request failed: 403/i.test(err.message)) {
         const usedManualInput = !selectedPlaylistId && !!derivedId
         if (usedManualInput) {
-          setError('This playlist cannot be read by your current account. It may be private or owned by another user. Try choosing from Your playlists instead, or paste track IDs/URLs directly.')
+          setError('This playlist cannot be read by your current account. It may be private or owned by another user. Try choosing from Your playlists instead.')
           return
         }
       }
       setError(err instanceof Error ? err.message : 'Failed to load playlist.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLoadTrackIds = async () => {
+    setError('')
+
+    if (parsedTrackIds.length === 0) {
+      setError('Paste Spotify track IDs or track URLs into the track import box.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const token = await getValidAccessToken()
+      const tracks = await fetchTracksByIds(token, parsedTrackIds)
+
+      if (tracks.length === 0) {
+        setError('No valid Spotify tracks were found in the pasted IDs/URLs.')
+        return
+      }
+
+      const songs = Object.fromEntries(
+        tracks.map((track) => [track.id, { ...track, status: 'unknown' as const }]),
+      )
+      const songOrder = tracks.map((track) => track.id)
+      const targetMs = parseMinutesToMs(targetMinutes)
+
+      const newSession: SessionState = {
+        playlistId: MANUAL_TRACKS_SOURCE_ID,
+        playlistName: `Imported Tracks (${tracks.length})`,
+        sourceType: 'tracks',
+        pass: 1,
+        queueIndex: 0,
+        passQueueIds: [...songOrder],
+        targetMs,
+        muted: false,
+        songOrder,
+        songs,
+        history: [],
+      }
+      startSession(newSession)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load pasted tracks.')
     } finally {
       setLoading(false)
     }
@@ -354,15 +364,54 @@ export function ImportScreen() {
             </button>
           </div>
 
-          <div className="import-divider">or paste a Spotify link / playlist ID / track IDs</div>
+          <div className="import-divider">or paste a Spotify playlist link / ID</div>
 
-          <textarea
-            className="id-input"
-            rows={4}
-            placeholder={'https://open.spotify.com/playlist/...\nhttps://open.spotify.com/track/...\n4uLU6hMCjMI75M1A2tKUQC'}
-            value={manualInput}
-            onChange={(e) => setManualInput(e.target.value)}
-          />
+          <div className="import-block">
+            <div className="import-block-header">
+              <h2>Playlist URL or ID</h2>
+            </div>
+            <textarea
+              className="id-input"
+              rows={2}
+              placeholder={'https://open.spotify.com/playlist/...\n37i9dQZF1DXcBWIGoYBM5M'}
+              value={manualInput}
+              onChange={(e) => setManualInput(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={loading}
+              onClick={() => void handleLoadPlaylist()}
+            >
+              {loading ? 'Loading…' : 'Import Playlist'}
+            </button>
+          </div>
+
+          <div className="import-divider">or paste Spotify track IDs / track URLs</div>
+
+          <div className="import-block">
+            <div className="import-block-header">
+              <h2>Track IDs</h2>
+            </div>
+            <textarea
+              className="id-input"
+              rows={6}
+              placeholder={'4uLU6hMCjMI75M1A2tKUQC\nhttps://open.spotify.com/track/1301WleyT98MSxVHPZCA6M\n1A2B3C4D5E6F7G8H9I0JKL'}
+              value={manualTrackInput}
+              onChange={(e) => setManualTrackInput(e.target.value)}
+            />
+            <p className="helper-text">
+              Detected {parsedTrackIds.length} valid track ID{parsedTrackIds.length === 1 ? '' : 's'}.
+            </p>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={loading}
+              onClick={() => void handleLoadTrackIds()}
+            >
+              {loading ? 'Loading…' : 'Import Tracks'}
+            </button>
+          </div>
 
           <div className="target-row">
             <label htmlFor="targetMin">Target duration (minutes)</label>
@@ -376,15 +425,6 @@ export function ImportScreen() {
           </div>
 
           {error && <p className="error-msg">{error}</p>}
-
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={loading}
-            onClick={() => void handleLoadPlaylist()}
-          >
-            {loading ? 'Loading…' : 'Start Sorting'}
-          </button>
 
           {session && (
             <button type="button" className="btn-secondary" onClick={() => setView('swipe')}>
