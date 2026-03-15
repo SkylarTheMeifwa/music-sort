@@ -152,6 +152,11 @@ export function ImportScreen() {
     }
   }
 
+  const handleReloadPlaylists = () => {
+    setAuthError('')
+    void loadPlaylists()
+  }
+
   if (authLoading) {
     return (
       <section className="screen import-screen">
@@ -197,6 +202,9 @@ export function ImportScreen() {
             <div className="import-block">
               <div className="import-block-header">
                 <h2>Your playlists</h2>
+                <button type="button" className="btn-secondary btn-inline" onClick={handleReloadPlaylists}>
+                  Reload
+                </button>
               </div>
               <select
                 className="playlist-select"
@@ -210,6 +218,20 @@ export function ImportScreen() {
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {playlists.length === 0 && (
+            <div className="import-block">
+              <div className="import-block-header">
+                <h2>Your playlists</h2>
+              </div>
+              <p className="app-subtitle">
+                No playlists were returned for this Spotify account yet.
+              </p>
+              <button type="button" className="btn-secondary" onClick={handleReloadPlaylists}>
+                Reload playlists
+              </button>
             </div>
           )}
 
