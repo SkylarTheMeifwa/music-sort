@@ -38,6 +38,10 @@ function getRequiredScopes(): string[] {
     'playlist-read-collaborative',
     'playlist-modify-private',
     'playlist-modify-public',
+    'streaming',
+    'user-read-email',
+    'user-read-playback-state',
+    'user-modify-playback-state',
     'user-library-read',
     'user-read-private',
   ]

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clamp, formatMs } from '../lib/format'
+import { getValidAccessToken } from '../lib/spotify'
 import { useAppStore } from '../store'
 import type { SortedSong } from '../types'
 import { SongCard } from './SongCard'
@@ -18,6 +19,26 @@ interface Cue {
   label: string
   color: string
   alpha: number
+}
+
+declare global {
+  interface Window {
+    Spotify?: {
+      Player: new (options: {
+        name: string
+        getOAuthToken: (cb: (token: string) => void) => void
+        volume?: number
+      }) => SpotifyPlayerLike
+    }
+    onSpotifyWebPlaybackSDKReady?: () => void
+  }
+}
+
+interface SpotifyPlayerLike {
+  connect: () => Promise<boolean>
+  disconnect: () => void
+  pause: () => Promise<void>
+  addListener: (event: string, cb: (payload: { device_id: string }) => void) => void
 }
 
 function getCue(x: number, y: number): Cue | null {
@@ -52,10 +73,14 @@ export function SwipeView() {
   const [drag, setDrag] = useState<DragState>({ x: 0, y: 0, active: false, transitioning: false })
   const [audioProgress, setAudioProgress] = useState(0)
   const [previewBlocked, setPreviewBlocked] = useState(false)
+  const [sdkReady, setSdkReady] = useState(false)
+  const [sdkFailed, setSdkFailed] = useState(false)
 
   const pointerRef = useRef<{ id: number; sx: number; sy: number } | null>(null)
   const inFlightRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const sdkPlayerRef = useRef<SpotifyPlayerLike | null>(null)
+  const sdkDeviceIdRef = useRef<string>('')
 
   const visibleSongIds = useMemo(() => {
     if (!session) return [] as string[]
@@ -110,6 +135,87 @@ export function SwipeView() {
   }, [])
 
   useEffect(() => {
+    let disposed = false
+
+    const initSdk = () => {
+      if (disposed || !window.Spotify) return
+
+      const player = new window.Spotify.Player({
+        name: 'Music Sort Player',
+        getOAuthToken: (cb) => {
+          void getValidAccessToken()
+            .then((token) => cb(token))
+            .catch(() => {
+              setSdkFailed(true)
+            })
+        },
+        volume: 0.8,
+      })
+
+      player.addListener('ready', ({ device_id }) => {
+        sdkDeviceIdRef.current = device_id
+        setSdkReady(true)
+        setSdkFailed(false)
+      })
+
+      sdkPlayerRef.current = player
+      void player.connect().then((ok) => {
+        if (!ok) setSdkFailed(true)
+      })
+    }
+
+    if (window.Spotify) {
+      initSdk()
+    } else {
+      const existing = document.querySelector('script[data-spotify-sdk="1"]') as HTMLScriptElement | null
+      if (!existing) {
+        const script = document.createElement('script')
+        script.src = 'https://sdk.scdn.co/spotify-player.js'
+        script.async = true
+        script.dataset.spotifySdk = '1'
+        document.body.appendChild(script)
+      }
+      window.onSpotifyWebPlaybackSDKReady = initSdk
+    }
+
+    return () => {
+      disposed = true
+      sdkPlayerRef.current?.disconnect()
+      sdkPlayerRef.current = null
+      sdkDeviceIdRef.current = ''
+    }
+  }, [])
+
+  const playWithSdk = useCallback(async (uri: string) => {
+    const deviceId = sdkDeviceIdRef.current
+    if (!deviceId) return
+
+    try {
+      const token = await getValidAccessToken()
+      await fetch('https://api.spotify.com/v1/me/player', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ device_ids: [deviceId], play: false }),
+      })
+
+      await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uris: [uri], position_ms: 0 }),
+      })
+      setPreviewBlocked(false)
+    } catch {
+      setSdkFailed(true)
+    }
+  }, [])
+
+  useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
@@ -118,14 +224,23 @@ export function SwipeView() {
 
     if (!topSong?.previewUrl || session?.muted) {
       audio.src = ''
-      setPreviewBlocked(false)
+      if (!session?.muted && topSong?.uri && sdkReady) {
+        void playWithSdk(topSong.uri)
+      }
       return
     }
 
     audio.src = topSong.previewUrl
     audio.currentTime = 0
     void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
-  }, [topSong?.id, topSong?.previewUrl, session?.muted])
+  }, [topSong?.id, topSong?.previewUrl, topSong?.uri, session?.muted, sdkReady, playWithSdk])
+
+  useEffect(() => {
+    if (!session?.muted) return
+    const player = sdkPlayerRef.current
+    if (!player) return
+    void player.pause().catch(() => undefined)
+  }, [session?.muted])
 
   const handleManualPreviewPlay = () => {
     const audio = audioRef.current
@@ -235,6 +350,12 @@ export function SwipeView() {
           <button type="button" className="btn-secondary btn-inline" onClick={handleManualPreviewPlay}>
             Play Preview
           </button>
+        )}
+        {!topSong?.previewUrl && !session.muted && sdkReady && (
+          <span className="helper-text">Playing with Spotify SDK</span>
+        )}
+        {sdkFailed && !topSong?.previewUrl && (
+          <span className="helper-text">SDK playback unavailable for this account.</span>
         )}
         <button type="button" className="btn-secondary btn-inline" onClick={handleCancel}>
           Cancel
