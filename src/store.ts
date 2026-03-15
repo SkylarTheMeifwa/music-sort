@@ -15,6 +15,7 @@ interface AppStore {
   undo: () => void
   advanceToNextPass: () => void
   clearSession: () => void
+  patchSongMeta: (uri: string, artists: string[], durationMs: number) => void
 }
 
 function calcYesDuration(songs: SessionState['songs'], order: string[]): number {
@@ -136,6 +137,32 @@ export const useAppStore = create<AppStore>()(
         }),
 
       clearSession: () => set({ session: null, view: 'import' as ViewMode }),
+
+      patchSongMeta: (uri, artists, durationMs) =>
+        set((s) => {
+          if (!s.session) return {}
+          const songId = Object.keys(s.session.songs).find(
+            (id) => s.session!.songs[id].uri === uri,
+          )
+          if (!songId) return {}
+          const song = s.session.songs[songId]
+          const needsArtists = song.artists.length === 0 || song.artists.every((a) => /^unknown/i.test(a))
+          const needsDuration = !song.durationMs || song.durationMs <= 0
+          if (!needsArtists && !needsDuration) return {}
+          return {
+            session: {
+              ...s.session,
+              songs: {
+                ...s.session.songs,
+                [songId]: {
+                  ...song,
+                  artists: needsArtists ? artists : song.artists,
+                  durationMs: needsDuration ? durationMs : song.durationMs,
+                },
+              },
+            },
+          }
+        }),
     }),
     {
       name: 'music-sort-session-v1',

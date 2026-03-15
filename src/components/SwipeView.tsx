@@ -37,6 +37,8 @@ declare global {
 interface SpotifyPlayerTrack {
   uri: string
   duration_ms: number
+  name: string
+  artists: Array<{ name: string; uri: string }>
 }
 
 interface SpotifyPlayerState {
@@ -90,6 +92,7 @@ export function SwipeView() {
   const undo = useAppStore((s) => s.undo)
   const setMuted = useAppStore((s) => s.setMuted)
   const clearSession = useAppStore((s) => s.clearSession)
+  const patchSongMeta = useAppStore((s) => s.patchSongMeta)
 
   const [drag, setDrag] = useState<DragState>({ x: 0, y: 0, active: false, transitioning: false })
   const [audioProgress, setAudioProgress] = useState(0)
@@ -172,6 +175,17 @@ export function SwipeView() {
           paused: !!state.paused,
           receivedAt: Date.now(),
         })
+
+        // Backfill missing artist/duration data from the SDK.
+        if (currentTrack?.uri && currentTrack.artists?.length > 0) {
+          const sdkArtists = currentTrack.artists
+            .map((a) => a.name?.trim())
+            .filter(Boolean) as string[]
+          const sdkDuration = Math.max(0, state.duration || currentTrack.duration_ms || 0)
+          if (sdkArtists.length > 0 || sdkDuration > 0) {
+            patchSongMeta(currentTrack.uri, sdkArtists, sdkDuration)
+          }
+        }
       })
 
       sdkPlayerRef.current = player
