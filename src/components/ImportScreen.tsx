@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  clearStoredToken,
   exchangeCodeForToken,
   extractSpotifyPlaylistId,
   fetchPlaylistMeta,
@@ -242,6 +243,18 @@ export function ImportScreen() {
               Resume Saved Session
             </button>
           )}
+
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              clearStoredToken()
+              setIsAuthenticated(false)
+              setPlaylists([])
+            }}
+          >
+            Log out of Spotify
+          </button>
         </div>
       )}
     </section>
