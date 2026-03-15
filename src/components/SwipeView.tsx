@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { clamp, formatMs } from '../lib/format'
+import { clamp, formatDurationHm } from '../lib/format'
 import { getValidAccessToken } from '../lib/spotify'
 import { useAppStore } from '../store'
 import type { SortedSong } from '../types'
@@ -363,8 +363,8 @@ export function SwipeView() {
           <div className="duration-fill" style={{ width: `${targetProgress}%` }} />
         </div>
         <div className="duration-labels">
-          <span>{formatMs(yesDurationMs)} selected</span>
-          <span>{formatMs(session.targetMs)} target</span>
+          <span>{formatDurationHm(yesDurationMs)} selected</span>
+          <span>{formatDurationHm(session.targetMs)} target</span>
         </div>
       </div>
 

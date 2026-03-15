@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { formatMs } from '../lib/format'
+import { formatDurationHm } from '../lib/format'
 import {
   createSpotifyPlaylistFromTracks,
   getValidAccessToken,
@@ -124,7 +124,7 @@ export function ResultsScreen() {
         <article className="stat-box green">
           <span className="stat-num">{stats.yes}</span>
           <span className="stat-label">Yes</span>
-          <span className="stat-dur">{formatMs(stats.yesDuration)}</span>
+          <span className="stat-dur">{formatDurationHm(stats.yesDuration)}</span>
         </article>
         <article className="stat-box yellow">
           <span className="stat-num">{stats.maybe}</span>
@@ -141,8 +141,8 @@ export function ResultsScreen() {
           <div className="duration-fill" style={{ width: `${targetProgress}%` }} />
         </div>
         <div className="duration-labels">
-          <span>{formatMs(stats.yesDuration)} selected</span>
-          <span>{formatMs(session.targetMs)} target</span>
+          <span>{formatDurationHm(stats.yesDuration)} selected</span>
+          <span>{formatDurationHm(session.targetMs)} target</span>
         </div>
       </div>
 
