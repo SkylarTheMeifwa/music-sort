@@ -110,6 +110,9 @@ export function SwipeView() {
   const inFlightRef = useRef(false)
   const sdkPlayerRef = useRef<SpotifyPlayerLike | null>(null)
   const sdkDeviceIdRef = useRef<string>('')
+  const topSongRef = useRef<SortedSong | null>(null)
+  const sessionMutedRef = useRef(false)
+  const playWithSdkRef = useRef<((uri: string, positionMs: number, durationMs: number) => Promise<void>) | null>(null)
 
   const visibleSongIds = useMemo(() => {
     if (!session) return [] as string[]
@@ -140,6 +143,9 @@ export function SwipeView() {
     return clamp((yesDurationMs / session.targetMs) * 100, 0, 100)
   }, [session, yesDurationMs])
 
+  topSongRef.current = topSong
+  sessionMutedRef.current = !!session?.muted
+
   useEffect(() => {
     let disposed = false
 
@@ -168,10 +174,13 @@ export function SwipeView() {
         if (!state) return
 
         const currentTrack = state.track_window?.current_track
+        const sdkDuration = Math.max(0, state.duration || currentTrack?.duration_ms || 0)
+        const sdkPosition = Math.max(0, state.position || 0)
+
         setPlaybackSnapshot({
           uri: currentTrack?.uri || '',
-          positionMs: Math.max(0, state.position || 0),
-          durationMs: Math.max(0, state.duration || currentTrack?.duration_ms || 0),
+          positionMs: sdkPosition,
+          durationMs: sdkDuration,
           paused: !!state.paused,
           receivedAt: Date.now(),
         })
@@ -181,9 +190,22 @@ export function SwipeView() {
           const sdkArtists = currentTrack.artists
             .map((a) => a.name?.trim())
             .filter(Boolean) as string[]
-          const sdkDuration = Math.max(0, state.duration || currentTrack.duration_ms || 0)
           if (sdkArtists.length > 0 || sdkDuration > 0) {
             patchSongMeta(currentTrack.uri, sdkArtists, sdkDuration)
+          }
+        }
+
+        // Loop: restart from the middle when the track ends.
+        const isTrackEnd =
+          state.paused &&
+          sdkDuration > 0 &&
+          sdkPosition >= sdkDuration - 800
+
+        if (isTrackEnd && !sessionMutedRef.current) {
+          const song = topSongRef.current
+          if (song && song.uri === currentTrack?.uri) {
+            const restartMs = getMiddlePositionMs(sdkDuration || song.durationMs)
+            void playWithSdkRef.current?.(song.uri, restartMs, sdkDuration || song.durationMs)
           }
         }
       })
@@ -258,6 +280,9 @@ export function SwipeView() {
       setAudioProgress(0)
     }
   }, [])
+
+  // Keep ref current so the SDK listener can always call the latest version.
+  playWithSdkRef.current = playWithSdk
 
   useEffect(() => {
     setAudioProgress(0)
