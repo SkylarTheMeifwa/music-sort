@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 import { formatMs } from '../lib/format'
-import { getValidAccessToken, removeTracksFromPlaylist } from '../lib/spotify'
+import {
+  createSpotifyPlaylistFromTracks,
+  getValidAccessToken,
+  removeTracksFromPlaylist,
+} from '../lib/spotify'
 import { useAppStore } from '../store'
 
 export function ResultsScreen() {
@@ -10,6 +14,9 @@ export function ResultsScreen() {
   const clearSession = useAppStore((s) => s.clearSession)
 
   const [showModal, setShowModal] = useState(false)
+  const [createBusy, setCreateBusy] = useState(false)
+  const [createMsg, setCreateMsg] = useState('')
+  const [createdPlaylistUrl, setCreatedPlaylistUrl] = useState('')
   const [removeBusy, setRemoveBusy] = useState(false)
   const [removeMsg, setRemoveMsg] = useState('')
   const [copied, setCopied] = useState(false)
@@ -44,6 +51,13 @@ export function ResultsScreen() {
     return session.songOrder.some((id) => session.songs[id].status !== 'yes')
   }, [session])
 
+  const yesUris = useMemo(() => {
+    if (!session) return [] as string[]
+    return session.songOrder
+      .filter((id) => session.songs[id].status === 'yes')
+      .map((id) => session.songs[id].uri)
+  }, [session])
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(cleanupLines.join('\n'))
     setCopied(true)
@@ -67,6 +81,36 @@ export function ResultsScreen() {
       setRemoveMsg(err instanceof Error ? err.message : 'Failed to remove tracks.')
     } finally {
       setRemoveBusy(false)
+    }
+  }
+
+  const handleCreateSpotifyPlaylist = async () => {
+    if (!session || yesUris.length === 0 || createBusy) return
+
+    setCreateBusy(true)
+    setCreateMsg('')
+    setCreatedPlaylistUrl('')
+
+    try {
+      const token = await getValidAccessToken()
+      const createdAt = new Date().toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+      const sourceLabel = session.sourceType === 'liked' ? 'Liked Songs' : session.playlistName
+      const playlist = await createSpotifyPlaylistFromTracks(token, {
+        name: `${session.playlistName} - Yes Picks`,
+        description: `Created by Music Sort from ${sourceLabel} on ${createdAt}.`,
+        isPublic: false,
+        uris: yesUris,
+      })
+      setCreateMsg(`Created ${playlist.name} with ${yesUris.length} tracks.`)
+      setCreatedPlaylistUrl(playlist.externalUrl ?? '')
+    } catch (err) {
+      setCreateMsg(err instanceof Error ? err.message : 'Failed to create Spotify playlist.')
+    } finally {
+      setCreateBusy(false)
     }
   }
 
@@ -103,6 +147,17 @@ export function ResultsScreen() {
       </div>
 
       <div className="results-actions">
+        {yesUris.length > 0 && (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={createBusy}
+            onClick={() => void handleCreateSpotifyPlaylist()}
+          >
+            {createBusy ? 'Creating Spotify Playlist…' : `Create Spotify Playlist (${yesUris.length} tracks)`}
+          </button>
+        )}
+
         {cleanupLines.length > 0 && (
           <button type="button" className="btn-primary" onClick={() => setShowModal(true)}>
             Cleanup List ({cleanupLines.length} tracks)
@@ -123,6 +178,17 @@ export function ResultsScreen() {
           Start Over
         </button>
       </div>
+
+      {createMsg && (
+        <div className="status-block">
+          <p className="success-msg">{createMsg}</p>
+          {createdPlaylistUrl && (
+            <a className="results-link" href={createdPlaylistUrl} target="_blank" rel="noreferrer">
+              Open playlist in Spotify
+            </a>
+          )}
+        </div>
+      )}
 
       {showModal && (
         <div

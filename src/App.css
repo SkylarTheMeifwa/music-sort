@@ -425,6 +425,24 @@ body {
   gap: 10px;
   width: 100%;
 }
+.status-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.success-msg {
+  color: var(--green);
+  font-size: 13px;
+}
+.results-link {
+  color: var(--blue);
+  font-size: 13px;
+  text-decoration: none;
+}
+.results-link:hover {
+  text-decoration: underline;
+}
 
 /* Export Modal */
 .modal-backdrop {

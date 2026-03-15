@@ -25,6 +25,12 @@ export interface SpotifyProfile {
   email?: string
 }
 
+export interface CreatedSpotifyPlaylist {
+  id: string
+  name: string
+  externalUrl: string | null
+}
+
 function getRequiredScopes(): string[] {
   return [
     'playlist-read-private',
@@ -476,6 +482,56 @@ export async function removeTracksFromPlaylist(
       body: JSON.stringify({ tracks: chunk.map((uri) => ({ uri })) }),
     })
   }
+}
+
+export async function createSpotifyPlaylist(
+  token: string,
+  options: { name: string; description?: string; isPublic?: boolean },
+): Promise<CreatedSpotifyPlaylist> {
+  const profile = await fetchCurrentSpotifyProfile(token)
+  const playlist = await spotifyFetch<{
+    id: string
+    name: string
+    external_urls?: { spotify?: string }
+  }>(token, `/users/${profile.id}/playlists`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: options.name,
+      description: options.description || '',
+      public: options.isPublic ?? false,
+    }),
+  })
+
+  return {
+    id: playlist.id,
+    name: playlist.name,
+    externalUrl: playlist.external_urls?.spotify ?? null,
+  }
+}
+
+export async function addTracksToPlaylist(
+  token: string,
+  playlistId: string,
+  uris: string[],
+): Promise<void> {
+  for (let i = 0; i < uris.length; i += 100) {
+    const chunk = uris.slice(i, i + 100)
+    await spotifyFetch<{ snapshot_id: string }>(token, `/playlists/${playlistId}/tracks`, {
+      method: 'POST',
+      body: JSON.stringify({ uris: chunk }),
+    })
+  }
+}
+
+export async function createSpotifyPlaylistFromTracks(
+  token: string,
+  options: { name: string; description?: string; isPublic?: boolean; uris: string[] },
+): Promise<CreatedSpotifyPlaylist> {
+  const playlist = await createSpotifyPlaylist(token, options)
+  if (options.uris.length > 0) {
+    await addTracksToPlaylist(token, playlist.id, options.uris)
+  }
+  return playlist
 }
 
 export function extractSpotifyPlaylistId(input: string): string | null {
