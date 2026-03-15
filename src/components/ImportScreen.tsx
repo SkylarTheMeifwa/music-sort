@@ -69,6 +69,7 @@ export function ImportScreen() {
             accessToken: exchanged.access_token,
             refreshToken: exchanged.refresh_token ?? null,
             expiresAt: Date.now() + exchanged.expires_in * 1000,
+            clientId: import.meta.env.VITE_SPOTIFY_CLIENT_ID as string,
           })
           sessionStorage.removeItem('spotify_oauth_state')
           const clean = `${window.location.origin}${window.location.pathname}`

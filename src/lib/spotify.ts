@@ -14,6 +14,7 @@ export interface StoredToken {
   accessToken: string
   refreshToken: string | null
   expiresAt: number
+  clientId: string
 }
 
 export function readStoredToken(): StoredToken | null {
@@ -35,8 +36,14 @@ export function clearStoredToken(): void {
 }
 
 export async function getValidAccessToken(): Promise<string> {
+  const clientId = assertClientId()
   const stored = readStoredToken()
   if (!stored) throw new Error('Not authenticated. Please log in with Spotify.')
+
+  if (!stored.clientId || stored.clientId !== clientId) {
+    clearStoredToken()
+    throw new Error('Spotify app configuration changed. Please log in with Spotify again.')
+  }
 
   if (stored.expiresAt > Date.now() + 30_000) return stored.accessToken
 
@@ -50,6 +57,7 @@ export async function getValidAccessToken(): Promise<string> {
     accessToken: refreshed.access_token,
     refreshToken: refreshed.refresh_token ?? stored.refreshToken,
     expiresAt: Date.now() + refreshed.expires_in * 1000,
+    clientId,
   }
   writeStoredToken(next)
   return next.accessToken
@@ -209,6 +217,26 @@ async function spotifyFetch<T>(token: string, endpoint: string, init?: RequestIn
 
   if (!response.ok) {
     const text = await response.text()
+    let spotifyMessage = ''
+    try {
+      const parsed = JSON.parse(text) as { error?: { message?: string } }
+      spotifyMessage = parsed.error?.message?.trim() || ''
+    } catch {
+      spotifyMessage = ''
+    }
+
+    if (response.status === 401) {
+      clearStoredToken()
+      throw new Error('Spotify session expired or invalid. Please log in with Spotify again.')
+    }
+
+    if (response.status === 403) {
+      const details = spotifyMessage || text || 'Forbidden'
+      throw new Error(
+        `Spotify access was denied (${details}). Confirm this Spotify account is added under app User Management and that the app has redirect URI ${getRedirectUri()}. Then log out and log in again.`,
+      )
+    }
+
     throw new Error(`Spotify API request failed: ${response.status} ${text}`)
   }
 
