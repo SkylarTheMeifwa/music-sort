@@ -109,6 +109,35 @@ interface SpotifyPlaylist {
   }
 }
 
+interface SpotifyTrackItem {
+  track: {
+    id: string | null
+    uri: string
+    name: string
+    duration_ms: number
+    preview_url: string | null
+    artists: Array<{ name: string }>
+    album: { images: Array<{ url: string }> }
+  } | null
+}
+
+function appendTrackItems(items: SpotifyTrackItem[], songs: SongCardData[]): void {
+  for (const item of items) {
+    const track = item.track
+    if (!track?.id) continue
+
+    songs.push({
+      id: `${track.id}_${songs.length}`,
+      uri: track.uri,
+      name: track.name,
+      artists: track.artists.map((artist) => artist.name),
+      durationMs: track.duration_ms,
+      imageUrl: track.album.images[0]?.url || '',
+      previewUrl: track.preview_url,
+    })
+  }
+}
+
 function assertClientId(): string {
   if (!CLIENT_ID) {
     throw new Error('Missing VITE_SPOTIFY_CLIENT_ID in environment variables.')
@@ -310,40 +339,25 @@ export function getStoredScope(): string {
 
 export async function fetchPlaylistTracks(token: string, playlistId: string): Promise<SongCardData[]> {
   const songs: SongCardData[] = []
-  let nextEndpoint = `/playlists/${playlistId}/tracks?limit=100`
+  let nextEndpoint = `/playlists/${playlistId}/tracks?limit=100&market=from_token`
+
+  return fetchPlaylistTrackPages(token, nextEndpoint, songs)
+}
+
+async function fetchPlaylistTrackPages(
+  token: string,
+  initialEndpoint: string,
+  songs: SongCardData[] = [],
+): Promise<SongCardData[]> {
+  let nextEndpoint = initialEndpoint
 
   while (nextEndpoint) {
     const page = await spotifyFetch<{
-      items: Array<{
-        track: {
-          id: string | null
-          uri: string
-          name: string
-          duration_ms: number
-          preview_url: string | null
-          artists: Array<{ name: string }>
-          album: { images: Array<{ url: string }> }
-        } | null
-      }>
+      items: SpotifyTrackItem[]
       next: string | null
     }>(token, nextEndpoint)
 
-    for (const item of page.items) {
-      const track = item.track
-      if (!track?.id) {
-        continue
-      }
-
-      songs.push({
-        id: `${track.id}_${songs.length}`,
-        uri: track.uri,
-        name: track.name,
-        artists: track.artists.map((artist) => artist.name),
-        durationMs: track.duration_ms,
-        imageUrl: track.album.images[0]?.url || '',
-        previewUrl: track.preview_url,
-      })
-    }
+    appendTrackItems(page.items, songs)
 
     if (!page.next) {
       nextEndpoint = ''
@@ -352,9 +366,47 @@ export async function fetchPlaylistTracks(token: string, playlistId: string): Pr
 
     const nextUrl = new URL(page.next)
     nextEndpoint = `${nextUrl.pathname}${nextUrl.search}`.replace('/v1', '')
+    if (!nextUrl.searchParams.has('market')) {
+      nextEndpoint += `${nextUrl.search ? '&' : '?'}market=from_token`
+    }
   }
 
   return songs
+}
+
+export async function fetchPlaylistWithTracks(
+  token: string,
+  playlistId: string,
+): Promise<{ id: string; name: string; tracks: SongCardData[] }> {
+  const firstPage = await spotifyFetch<{
+    id: string
+    name: string
+    tracks: {
+      items: SpotifyTrackItem[]
+      next: string | null
+    }
+  }>(
+    token,
+    `/playlists/${playlistId}?market=from_token&fields=id,name,tracks.items(track(id,uri,name,duration_ms,preview_url,artists(name),album(images(url)))),tracks.next`,
+  )
+
+  const tracks: SongCardData[] = []
+  appendTrackItems(firstPage.tracks.items, tracks)
+
+  if (firstPage.tracks.next) {
+    const nextUrl = new URL(firstPage.tracks.next)
+    let nextEndpoint = `${nextUrl.pathname}${nextUrl.search}`.replace('/v1', '')
+    if (!nextUrl.searchParams.has('market')) {
+      nextEndpoint += `${nextUrl.search ? '&' : '?'}market=from_token`
+    }
+    await fetchPlaylistTrackPages(token, nextEndpoint, tracks)
+  }
+
+  return {
+    id: firstPage.id,
+    name: firstPage.name,
+    tracks,
+  }
 }
 
 export async function fetchLikedTracks(token: string): Promise<SongCardData[]> {
@@ -408,7 +460,7 @@ export async function fetchPlaylistMeta(
   token: string,
   playlistId: string,
 ): Promise<{ id: string; name: string }> {
-  const data = await spotifyFetch<{ id: string; name: string }>(token, `/playlists/${playlistId}?fields=id,name`)
+  const data = await spotifyFetch<{ id: string; name: string }>(token, `/playlists/${playlistId}?market=from_token&fields=id,name`)
   return { id: data.id, name: data.name }
 }
 

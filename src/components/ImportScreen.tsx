@@ -5,8 +5,7 @@ import {
   extractSpotifyPlaylistId,
   fetchCurrentSpotifyProfile,
   fetchLikedTracks,
-  fetchPlaylistMeta,
-  fetchPlaylistTracks,
+  fetchPlaylistWithTracks,
   fetchUserPlaylists,
   getStoredScope,
   getValidAccessToken,
@@ -124,10 +123,8 @@ export function ImportScreen() {
     setLoading(true)
     try {
       const token = await getValidAccessToken()
-      const [meta, tracks] = await Promise.all([
-        fetchPlaylistMeta(token, playlistId),
-        fetchPlaylistTracks(token, playlistId),
-      ])
+      const playlist = await fetchPlaylistWithTracks(token, playlistId)
+      const tracks = playlist.tracks
 
       if (tracks.length === 0) {
         setError('No tracks found in this playlist.')
@@ -142,7 +139,7 @@ export function ImportScreen() {
 
       const newSession: SessionState = {
         playlistId,
-        playlistName: meta.name,
+        playlistName: playlist.name,
         sourceType: 'playlist',
         pass: 1,
         queueIndex: 0,
