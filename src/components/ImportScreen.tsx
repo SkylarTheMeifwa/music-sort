@@ -441,15 +441,17 @@ export function ImportScreen() {
           </div>
 
           <div className="target-row">
-            <label htmlFor="targetMin">Target duration (minutes)</label>
+            <label htmlFor="targetMin">Target duration (HH:MM or minutes)</label>
             <input
               id="targetMin"
               className="target-input"
-              inputMode="decimal"
+              inputMode="text"
+              placeholder="1:30"
               value={targetMinutes}
               onChange={(e) => handleTargetChange(e.target.value)}
             />
           </div>
+          <p className="helper-text">Examples: 1:30 = 1 hour 30 min, or 90 = 90 minutes.</p>
 
           {error && <p className="error-msg">{error}</p>}
 

@@ -11,7 +11,34 @@ export function formatMs(ms: number): string {
 }
 
 export function parseMinutesToMs(minutes: string): number {
-  const parsed = Number(minutes)
+  const input = minutes.trim()
+  if (!input) {
+    return 0
+  }
+
+  // Support HH:MM (or H:MM) input.
+  if (input.includes(':')) {
+    const parts = input.split(':')
+    if (parts.length !== 2) {
+      return 0
+    }
+
+    const [hoursPart, minsPart] = parts.map((part) => part.trim())
+    if (!/^\d+$/.test(hoursPart) || !/^\d+$/.test(minsPart)) {
+      return 0
+    }
+
+    const hours = Number(hoursPart)
+    const mins = Number(minsPart)
+    if (!Number.isFinite(hours) || !Number.isFinite(mins) || mins < 0 || mins >= 60) {
+      return 0
+    }
+
+    return (hours * 60 + mins) * 60_000
+  }
+
+  // Backward-compatible: plain minutes (e.g., "90" or "90.5").
+  const parsed = Number(input)
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return 0
   }
