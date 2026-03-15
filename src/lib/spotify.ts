@@ -15,6 +15,28 @@ export interface StoredToken {
   refreshToken: string | null
   expiresAt: number
   clientId: string
+  scope: string
+}
+
+export interface SpotifyProfile {
+  id: string
+  display_name: string | null
+  email?: string
+}
+
+function getRequiredScopes(): string[] {
+  return [
+    'playlist-read-private',
+    'playlist-read-collaborative',
+    'playlist-modify-private',
+    'playlist-modify-public',
+    'user-read-private',
+  ]
+}
+
+function getMissingScopes(scope: string): string[] {
+  const granted = new Set(scope.split(/\s+/).filter(Boolean))
+  return getRequiredScopes().filter((requiredScope) => !granted.has(requiredScope))
 }
 
 export function readStoredToken(): StoredToken | null {
@@ -45,6 +67,11 @@ export async function getValidAccessToken(): Promise<string> {
     throw new Error('Spotify app configuration changed. Please log in with Spotify again.')
   }
 
+  if (!stored.scope || getMissingScopes(stored.scope).length > 0) {
+    clearStoredToken()
+    throw new Error('Spotify permissions are incomplete. Please log in with Spotify again and approve access.')
+  }
+
   if (stored.expiresAt > Date.now() + 30_000) return stored.accessToken
 
   if (!stored.refreshToken) {
@@ -58,6 +85,7 @@ export async function getValidAccessToken(): Promise<string> {
     refreshToken: refreshed.refresh_token ?? stored.refreshToken,
     expiresAt: Date.now() + refreshed.expires_in * 1000,
     clientId,
+    scope: refreshed.scope || stored.scope,
   }
   writeStoredToken(next)
   return next.accessToken
@@ -137,11 +165,7 @@ export async function startSpotifyLogin(): Promise<void> {
     redirect_uri: getRedirectUri(),
     show_dialog: 'true',
     scope: [
-      'playlist-read-private',
-      'playlist-read-collaborative',
-      'playlist-modify-private',
-      'playlist-modify-public',
-      'user-read-private',
+      ...getRequiredScopes(),
     ].join(' '),
     code_challenge_method: 'S256',
     code_challenge: codeChallenge,
@@ -272,6 +296,14 @@ export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist
   }
 
   return playlists
+}
+
+export async function fetchCurrentSpotifyProfile(token: string): Promise<SpotifyProfile> {
+  return spotifyFetch<SpotifyProfile>(token, '/me')
+}
+
+export function getStoredScope(): string {
+  return readStoredToken()?.scope || ''
 }
 
 export async function fetchPlaylistTracks(token: string, playlistId: string): Promise<SongCardData[]> {

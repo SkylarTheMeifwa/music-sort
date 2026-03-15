@@ -3,9 +3,11 @@ import {
   clearStoredToken,
   exchangeCodeForToken,
   extractSpotifyPlaylistId,
+  fetchCurrentSpotifyProfile,
   fetchPlaylistMeta,
   fetchPlaylistTracks,
   fetchUserPlaylists,
+  getStoredScope,
   getValidAccessToken,
   readStoredToken,
   startSpotifyLogin,
@@ -19,6 +21,11 @@ interface PlaylistOption {
   id: string
   name: string
   total: number
+}
+
+interface AccountSummary {
+  id: string
+  label: string
 }
 
 export function ImportScreen() {
@@ -36,14 +43,19 @@ export function ImportScreen() {
   const [targetMinutes, setTargetMinutes] = useState('60')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [account, setAccount] = useState<AccountSummary | null>(null)
+  const [grantedScope, setGrantedScope] = useState('')
 
   const loadPlaylists = useCallback(async () => {
     try {
       const token = await getValidAccessToken()
-      const items = await fetchUserPlaylists(token)
+      const [profile, items] = await Promise.all([fetchCurrentSpotifyProfile(token), fetchUserPlaylists(token)])
+      setAccount({ id: profile.id, label: profile.display_name || profile.id })
+      setGrantedScope(getStoredScope())
       setPlaylists(items.map((p) => ({ id: p.id, name: p.name, total: p.tracks?.total ?? 0 })))
       setIsAuthenticated(true)
     } catch (err) {
+      setAccount(null)
       setAuthError(err instanceof Error ? err.message : 'Failed to load playlists.')
       setIsAuthenticated(false)
     }
@@ -71,6 +83,7 @@ export function ImportScreen() {
             refreshToken: exchanged.refresh_token ?? null,
             expiresAt: Date.now() + exchanged.expires_in * 1000,
             clientId: import.meta.env.VITE_SPOTIFY_CLIENT_ID as string,
+            scope: exchanged.scope,
           })
           sessionStorage.removeItem('spotify_oauth_state')
           const clean = `${window.location.origin}${window.location.pathname}`
@@ -198,6 +211,17 @@ export function ImportScreen() {
 
       {isAuthenticated && (
         <div className="import-form">
+          {account && (
+            <div className="import-block">
+              <div className="import-block-header">
+                <h2>Connected Spotify account</h2>
+              </div>
+              <p className="app-subtitle">Signed in as {account.label}</p>
+              <p className="app-subtitle">Account ID: {account.id}</p>
+              <p className="app-subtitle">Granted scopes: {grantedScope || 'unknown'}</p>
+            </div>
+          )}
+
           {playlists.length > 0 && (
             <div className="import-block">
               <div className="import-block-header">
@@ -229,6 +253,11 @@ export function ImportScreen() {
               <p className="app-subtitle">
                 No playlists were returned for this Spotify account yet.
               </p>
+              {account && (
+                <p className="app-subtitle">
+                  Verify this is the Spotify account you added to your app's User Management.
+                </p>
+              )}
               <button type="button" className="btn-secondary" onClick={handleReloadPlaylists}>
                 Reload playlists
               </button>
@@ -279,6 +308,8 @@ export function ImportScreen() {
             onClick={() => {
               clearStoredToken()
               setIsAuthenticated(false)
+              setAccount(null)
+              setGrantedScope('')
               setPlaylists([])
             }}
           >
