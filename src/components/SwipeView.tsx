@@ -47,9 +47,11 @@ export function SwipeView() {
   const swipe = useAppStore((s) => s.swipe)
   const undo = useAppStore((s) => s.undo)
   const setMuted = useAppStore((s) => s.setMuted)
+  const clearSession = useAppStore((s) => s.clearSession)
 
   const [drag, setDrag] = useState<DragState>({ x: 0, y: 0, active: false, transitioning: false })
   const [audioProgress, setAudioProgress] = useState(0)
+  const [previewBlocked, setPreviewBlocked] = useState(false)
 
   const pointerRef = useRef<{ id: number; sx: number; sy: number } | null>(null)
   const inFlightRef = useRef(false)
@@ -116,13 +118,29 @@ export function SwipeView() {
 
     if (!topSong?.previewUrl || session?.muted) {
       audio.src = ''
+      setPreviewBlocked(false)
       return
     }
 
     audio.src = topSong.previewUrl
     audio.currentTime = 0
-    void audio.play().catch(() => undefined)
+    void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
   }, [topSong?.id, topSong?.previewUrl, session?.muted])
+
+  const handleManualPreviewPlay = () => {
+    const audio = audioRef.current
+    if (!audio || !topSong?.previewUrl) return
+    if (audio.src !== topSong.previewUrl) {
+      audio.src = topSong.previewUrl
+      audio.currentTime = 0
+    }
+    void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
+  }
+
+  const handleCancel = () => {
+    if (!window.confirm('Cancel current sorting and go back to import?')) return
+    clearSession()
+  }
 
   // ── Swipe commit ──────────────────────────────────────────────────────────
   const commitSwipe = useCallback(
@@ -210,6 +228,17 @@ export function SwipeView() {
           <span>{formatMs(yesDurationMs)} selected</span>
           <span>{formatMs(session.targetMs)} target</span>
         </div>
+      </div>
+
+      <div className="swipe-tools">
+        {topSong?.previewUrl && !session.muted && previewBlocked && (
+          <button type="button" className="btn-secondary btn-inline" onClick={handleManualPreviewPlay}>
+            Play Preview
+          </button>
+        )}
+        <button type="button" className="btn-secondary btn-inline" onClick={handleCancel}>
+          Cancel
+        </button>
       </div>
 
       {/* Card stack */}
