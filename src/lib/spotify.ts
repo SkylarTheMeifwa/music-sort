@@ -5,6 +5,7 @@ const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
 const PKCE_VERIFIER_KEY = 'spotify_pkce_verifier'
 const TOKEN_STORAGE_KEY = 'music_sort_spotify_token_v1'
+const CLIENT_ID_OVERRIDE_KEY = 'spotify_client_id_override'
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined
 
@@ -71,12 +72,30 @@ interface SpotifyPlaylist {
   }
 }
 
+export function getConfiguredSpotifyClientId(): string | undefined {
+  const override = localStorage.getItem(CLIENT_ID_OVERRIDE_KEY)?.trim()
+  if (override) return override
+
+  const envClientId = CLIENT_ID?.trim()
+  return envClientId || undefined
+}
+
+export function setSpotifyClientIdOverride(clientId: string | null): void {
+  const trimmed = clientId?.trim()
+  if (!trimmed) {
+    localStorage.removeItem(CLIENT_ID_OVERRIDE_KEY)
+    return
+  }
+  localStorage.setItem(CLIENT_ID_OVERRIDE_KEY, trimmed)
+}
+
 function assertClientId(): string {
-  if (!CLIENT_ID) {
-    throw new Error('Missing VITE_SPOTIFY_CLIENT_ID in environment variables.')
+  const configuredClientId = getConfiguredSpotifyClientId()
+  if (!configuredClientId) {
+    throw new Error('Missing Spotify Client ID. Set VITE_SPOTIFY_CLIENT_ID or paste a Client ID in the app.')
   }
 
-  return CLIENT_ID
+  return configuredClientId
 }
 
 export function getRedirectUri(): string {

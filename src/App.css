@@ -149,6 +149,14 @@ body {
   align-items: center;
   gap: 12px;
 }
+.auth-config-actions {
+  display: flex;
+  gap: 8px;
+}
+.auth-config-actions .btn-secondary {
+  flex: 1;
+  width: auto;
+}
 .target-row label {
   flex: 1;
   font-size: 14px;
