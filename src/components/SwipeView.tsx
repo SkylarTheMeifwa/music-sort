@@ -34,11 +34,27 @@ declare global {
   }
 }
 
+interface SpotifyPlayerTrack {
+  uri: string
+  duration_ms: number
+}
+
+interface SpotifyPlayerState {
+  paused: boolean
+  position: number
+  duration: number
+  track_window?: {
+    current_track?: SpotifyPlayerTrack
+  }
+}
+
 interface SpotifyPlayerLike {
   connect: () => Promise<boolean>
   disconnect: () => void
   pause: () => Promise<void>
-  addListener: (event: string, cb: (payload: { device_id: string }) => void) => void
+  addListener(event: 'ready', cb: (payload: { device_id: string }) => void): void
+  addListener(event: 'player_state_changed', cb: (state: SpotifyPlayerState | null) => void): void
+  removeListener?: (event: 'ready' | 'player_state_changed') => void
 }
 
 function getCue(x: number, y: number): Cue | null {
@@ -79,6 +95,13 @@ export function SwipeView() {
   const [audioProgress, setAudioProgress] = useState(0)
   const [sdkReady, setSdkReady] = useState(false)
   const [sdkFailed, setSdkFailed] = useState(false)
+  const [playbackSnapshot, setPlaybackSnapshot] = useState<{
+    uri: string
+    positionMs: number
+    durationMs: number
+    paused: boolean
+    receivedAt: number
+  } | null>(null)
 
   const pointerRef = useRef<{ id: number; sx: number; sy: number } | null>(null)
   const inFlightRef = useRef(false)
@@ -136,7 +159,19 @@ export function SwipeView() {
         sdkDeviceIdRef.current = device_id
         setSdkReady(true)
         setSdkFailed(false)
-        setAudioProgress(100)
+      })
+
+      player.addListener('player_state_changed', (state) => {
+        if (!state) return
+
+        const currentTrack = state.track_window?.current_track
+        setPlaybackSnapshot({
+          uri: currentTrack?.uri || '',
+          positionMs: Math.max(0, state.position || 0),
+          durationMs: Math.max(0, state.duration || currentTrack?.duration_ms || 0),
+          paused: !!state.paused,
+          receivedAt: Date.now(),
+        })
       })
 
       sdkPlayerRef.current = player
@@ -161,13 +196,18 @@ export function SwipeView() {
 
     return () => {
       disposed = true
+      if (sdkPlayerRef.current?.removeListener) {
+        sdkPlayerRef.current.removeListener('ready')
+        sdkPlayerRef.current.removeListener('player_state_changed')
+      }
       sdkPlayerRef.current?.disconnect()
       sdkPlayerRef.current = null
       sdkDeviceIdRef.current = ''
+      setPlaybackSnapshot(null)
     }
   }, [])
 
-  const playWithSdk = useCallback(async (uri: string, positionMs: number) => {
+  const playWithSdk = useCallback(async (uri: string, positionMs: number, durationMs: number) => {
     const deviceId = sdkDeviceIdRef.current
     if (!deviceId) return
 
@@ -190,7 +230,15 @@ export function SwipeView() {
         },
         body: JSON.stringify({ uris: [uri], position_ms: positionMs }),
       })
-      setAudioProgress(100)
+
+      setPlaybackSnapshot({
+        uri,
+        positionMs,
+        durationMs,
+        paused: false,
+        receivedAt: Date.now(),
+      })
+      setAudioProgress(durationMs > 0 ? clamp((positionMs / durationMs) * 100, 0, 100) : 0)
     } catch {
       setSdkFailed(true)
       setAudioProgress(0)
@@ -203,8 +251,37 @@ export function SwipeView() {
       return
     }
 
-    void playWithSdk(topSong.uri, getMiddlePositionMs(topSong.durationMs))
+    const startPositionMs = getMiddlePositionMs(topSong.durationMs)
+    void playWithSdk(topSong.uri, startPositionMs, topSong.durationMs)
   }, [topSong?.id, topSong?.uri, topSong?.durationMs, session?.muted, sdkReady, playWithSdk])
+
+  useEffect(() => {
+    if (!topSong?.uri || !playbackSnapshot || playbackSnapshot.uri !== topSong.uri) {
+      setAudioProgress(0)
+      return
+    }
+
+    const computeProgress = () => {
+      const effectiveDuration = playbackSnapshot.durationMs || topSong.durationMs
+      if (!effectiveDuration || effectiveDuration <= 0) {
+        setAudioProgress(0)
+        return
+      }
+
+      const elapsedSinceSnapshot = playbackSnapshot.paused ? 0 : Date.now() - playbackSnapshot.receivedAt
+      const positionMs = Math.min(effectiveDuration, Math.max(0, playbackSnapshot.positionMs + elapsedSinceSnapshot))
+      setAudioProgress(clamp((positionMs / effectiveDuration) * 100, 0, 100))
+    }
+
+    computeProgress()
+
+    if (playbackSnapshot.paused) {
+      return
+    }
+
+    const timer = window.setInterval(computeProgress, 250)
+    return () => window.clearInterval(timer)
+  }, [playbackSnapshot, topSong?.uri, topSong?.durationMs])
 
   useEffect(() => {
     if (!session?.muted) return

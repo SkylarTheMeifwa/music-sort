@@ -143,11 +143,15 @@ interface SpotifyTrack {
 }
 
 function toSongCardData(track: SpotifyTrack, index: number): SongCardData {
+  const artists = track.artists
+    .map((artist) => artist.name.trim())
+    .filter(Boolean)
+
   return {
     id: `${track.id}_${index}`,
     uri: track.uri,
     name: track.name,
-    artists: track.artists.map((artist) => artist.name),
+    artists: artists.length > 0 ? artists : ['Unknown artist'],
     durationMs: track.duration_ms,
     imageUrl: track.album.images[0]?.url || '',
     previewUrl: track.preview_url,

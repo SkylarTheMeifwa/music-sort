@@ -48,6 +48,11 @@ export function SongCard({
       : 'none'
     : 'transform 200ms ease'
 
+  const artistsText = song.artists.filter(Boolean).join(', ') || 'Unknown artist'
+  const hasDuration = Number.isFinite(song.durationMs) && song.durationMs > 0
+  const durationText = hasDuration ? formatMs(song.durationMs) : 'Unknown duration'
+  const progressMs = hasDuration ? Math.round((song.durationMs * Math.max(0, Math.min(100, audioProgress))) / 100) : 0
+
   return (
     <article
       className="song-card"
@@ -81,8 +86,8 @@ export function SongCard({
 
       <footer className="card-info">
         <p className="card-title">{song.name}</p>
-        <p className="card-artists">{song.artists.join(', ')}</p>
-        <p className="card-duration">{formatMs(song.durationMs)}</p>
+        <p className="card-artists">{artistsText}</p>
+        <p className="card-duration">{durationText}</p>
 
         {isTop && (
           <div className="progress-wrap">
@@ -93,7 +98,7 @@ export function SongCard({
               />
             </div>
             <p className="progress-label">
-              Spotify playback
+              {hasDuration ? `${formatMs(progressMs)} / ${durationText}` : 'Spotify playback'}
             </p>
           </div>
         )}
