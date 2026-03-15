@@ -582,16 +582,57 @@ export function extractSpotifyTrackIds(input: string): string[] {
 export async function fetchTracksByIds(token: string, trackIds: string[]): Promise<SongCardData[]> {
   const songs: SongCardData[] = []
 
-  for (let i = 0; i < trackIds.length; i += 50) {
-    const chunk = trackIds.slice(i, i + 50)
-    const page = await spotifyFetch<{ tracks: Array<SpotifyTrack | null> }>(
-      token,
-      `/tracks?ids=${encodeURIComponent(chunk.join(','))}&market=from_token`,
-    )
+  try {
+    for (let i = 0; i < trackIds.length; i += 50) {
+      const chunk = trackIds.slice(i, i + 50)
+      const page = await spotifyFetch<{ tracks: Array<SpotifyTrack | null> }>(
+        token,
+        `/tracks?ids=${encodeURIComponent(chunk.join(','))}&market=from_token`,
+      )
 
-    for (const track of page.tracks) {
-      if (!track?.id) continue
-      songs.push(toSongCardData(track, songs.length))
+      for (const track of page.tracks) {
+        if (!track?.id) continue
+        songs.push(toSongCardData(track, songs.length))
+      }
+    }
+
+    return songs
+  } catch (err) {
+    if (err instanceof Error && /Spotify access was denied|Spotify API request failed: 403/i.test(err.message)) {
+      // Fallback path for environments where /tracks is denied: use public oEmbed metadata.
+      return fetchTracksByIdsViaOEmbed(trackIds)
+    }
+    throw err
+  }
+}
+
+async function fetchTracksByIdsViaOEmbed(trackIds: string[]): Promise<SongCardData[]> {
+  const songs: SongCardData[] = []
+
+  for (const trackId of trackIds) {
+    try {
+      const response = await fetch(
+        `https://open.spotify.com/oembed?url=${encodeURIComponent(`spotify:track:${trackId}`)}`,
+      )
+      if (!response.ok) continue
+
+      const data = (await response.json()) as {
+        title?: string
+        author_name?: string
+        thumbnail_url?: string
+      }
+
+      songs.push({
+        id: `${trackId}_${songs.length}`,
+        uri: `spotify:track:${trackId}`,
+        name: data.title?.trim() || trackId,
+        artists: [data.author_name?.trim() || 'Unknown Artist'],
+        durationMs: 0,
+        imageUrl: data.thumbnail_url || '',
+        previewUrl: null,
+      })
+    } catch {
+      // Ignore per-track failures so one bad ID doesn't abort the import.
     }
   }
 
