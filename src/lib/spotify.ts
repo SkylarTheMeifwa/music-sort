@@ -579,8 +579,13 @@ export function extractSpotifyTrackIds(input: string): string[] {
   return ids
 }
 
-export async function fetchTracksByIds(token: string, trackIds: string[]): Promise<SongCardData[]> {
+export async function fetchTracksByIds(
+  token: string,
+  trackIds: string[],
+  onProgress?: (completedBatches: number, totalBatches: number) => void,
+): Promise<SongCardData[]> {
   const songs: SongCardData[] = []
+  const totalBatches = Math.max(1, Math.ceil(trackIds.length / 50))
 
   try {
     for (let i = 0; i < trackIds.length; i += 50) {
@@ -594,20 +599,27 @@ export async function fetchTracksByIds(token: string, trackIds: string[]): Promi
         if (!track?.id) continue
         songs.push(toSongCardData(track, songs.length))
       }
+
+      onProgress?.(Math.min(totalBatches, Math.floor(i / 50) + 1), totalBatches)
     }
 
     return songs
   } catch (err) {
     if (err instanceof Error && /Spotify access was denied|Spotify API request failed: 403/i.test(err.message)) {
       // Fallback path for environments where /tracks is denied: use public oEmbed metadata.
-      return fetchTracksByIdsViaOEmbed(trackIds)
+      return fetchTracksByIdsViaOEmbed(trackIds, onProgress)
     }
     throw err
   }
 }
 
-async function fetchTracksByIdsViaOEmbed(trackIds: string[]): Promise<SongCardData[]> {
+async function fetchTracksByIdsViaOEmbed(
+  trackIds: string[],
+  onProgress?: (completedBatches: number, totalBatches: number) => void,
+): Promise<SongCardData[]> {
   const songs: SongCardData[] = []
+  const total = Math.max(1, trackIds.length)
+  let completed = 0
 
   for (const trackId of trackIds) {
     try {
@@ -634,6 +646,9 @@ async function fetchTracksByIdsViaOEmbed(trackIds: string[]): Promise<SongCardDa
     } catch {
       // Ignore per-track failures so one bad ID doesn't abort the import.
     }
+
+    completed += 1
+    onProgress?.(completed, total)
   }
 
   return songs

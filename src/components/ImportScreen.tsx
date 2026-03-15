@@ -47,6 +47,8 @@ export function ImportScreen() {
   const [manualTrackInput, setManualTrackInput] = useState('')
   const [targetMinutes, setTargetMinutes] = useState('60')
   const [loading, setLoading] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState<number | null>(null)
+  const [loadingLabel, setLoadingLabel] = useState('Preparing import...')
   const [error, setError] = useState('')
   const [account, setAccount] = useState<AccountSummary | null>(null)
   const [grantedScope, setGrantedScope] = useState('')
@@ -126,8 +128,12 @@ export function ImportScreen() {
     }
 
     setLoading(true)
+    setLoadingLabel('Authorizing Spotify session...')
+    setLoadingProgress(8)
     try {
       const token = await getValidAccessToken()
+      setLoadingLabel('Fetching playlist tracks...')
+      setLoadingProgress(35)
 
       const playlist = await fetchPlaylistWithTracks(token, playlistId)
       const tracks = playlist.tracks
@@ -142,6 +148,8 @@ export function ImportScreen() {
       )
       const songOrder = tracks.map((t) => t.id)
       const targetMs = parseMinutesToMs(targetMinutes)
+      setLoadingLabel('Building sorting session...')
+      setLoadingProgress(92)
 
       const newSession: SessionState = {
         playlistId,
@@ -168,6 +176,7 @@ export function ImportScreen() {
       setError(err instanceof Error ? err.message : 'Failed to load playlist.')
     } finally {
       setLoading(false)
+      setLoadingProgress(null)
     }
   }
 
@@ -180,9 +189,17 @@ export function ImportScreen() {
     }
 
     setLoading(true)
+    setLoadingLabel('Authorizing Spotify session...')
+    setLoadingProgress(8)
     try {
       const token = await getValidAccessToken()
-      const tracks = await fetchTracksByIds(token, parsedTrackIds)
+      setLoadingLabel('Fetching tracks by ID...')
+      setLoadingProgress(15)
+      const tracks = await fetchTracksByIds(token, parsedTrackIds, (completed, total) => {
+        const ratio = total > 0 ? completed / total : 0
+        setLoadingProgress(15 + Math.round(ratio * 75))
+        setLoadingLabel(`Fetching tracks by ID... (${completed}/${total})`)
+      })
 
       if (tracks.length === 0) {
         setError('No valid Spotify tracks were found in the pasted IDs/URLs.')
@@ -194,6 +211,8 @@ export function ImportScreen() {
       )
       const songOrder = tracks.map((track) => track.id)
       const targetMs = parseMinutesToMs(targetMinutes)
+      setLoadingLabel('Building sorting session...')
+      setLoadingProgress(94)
 
       const newSession: SessionState = {
         playlistId: MANUAL_TRACKS_SOURCE_ID,
@@ -213,14 +232,19 @@ export function ImportScreen() {
       setError(err instanceof Error ? err.message : 'Failed to load pasted tracks.')
     } finally {
       setLoading(false)
+      setLoadingProgress(null)
     }
   }
 
   const handleLoadLikedSongs = async () => {
     setError('')
     setLoading(true)
+    setLoadingLabel('Authorizing Spotify session...')
+    setLoadingProgress(8)
     try {
       const token = await getValidAccessToken()
+      setLoadingLabel('Loading liked songs...')
+      setLoadingProgress(35)
       const tracks = await fetchLikedTracks(token)
 
       if (tracks.length === 0) {
@@ -233,6 +257,8 @@ export function ImportScreen() {
       )
       const songOrder = tracks.map((track) => track.id)
       const targetMs = parseMinutesToMs(targetMinutes)
+      setLoadingLabel('Building sorting session...')
+      setLoadingProgress(92)
 
       const newSession: SessionState = {
         playlistId: LIKED_SONGS_SOURCE_ID,
@@ -252,6 +278,7 @@ export function ImportScreen() {
       setError(err instanceof Error ? err.message : 'Failed to load Liked Songs.')
     } finally {
       setLoading(false)
+      setLoadingProgress(null)
     }
   }
 
@@ -275,6 +302,15 @@ export function ImportScreen() {
       <p className="app-subtitle">
         Swipe songs into Yes / Maybe / No to build the perfect playlist.
       </p>
+
+      {loading && (
+        <div className="import-progress">
+          <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={loadingProgress ?? 0}>
+            <div className="progress-fill" style={{ width: `${loadingProgress ?? 0}%` }} />
+          </div>
+          <p className="helper-text">{loadingLabel}</p>
+        </div>
+      )}
 
       {authError && (
         <div className="auth-error-banner">
