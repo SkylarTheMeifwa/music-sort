@@ -29,7 +29,7 @@ jobs:
 
       - name: Build
         env:
-          VITE_SPOTIFY_CLIENT_ID: ${{ secrets.VITE_SPOTIFY_CLIENT_ID }}
+          VITE_SPOTIFY_CLIENT_ID: 90d46758f35248b0a19ebc8f740505a9
           VITE_BASE_PATH: /music-sort/
         run: npm run build
 

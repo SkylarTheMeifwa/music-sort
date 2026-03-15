@@ -5,11 +5,8 @@ import {
   fetchPlaylistMeta,
   fetchPlaylistTracks,
   fetchUserPlaylists,
-  getConfiguredSpotifyClientId,
-  getRedirectUri,
   getValidAccessToken,
   readStoredToken,
-  setSpotifyClientIdOverride,
   startSpotifyLogin,
   writeStoredToken,
 } from '../lib/spotify'
@@ -38,7 +35,6 @@ export function ImportScreen() {
   const [targetMinutes, setTargetMinutes] = useState('60')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [clientIdDraft, setClientIdDraft] = useState(getConfiguredSpotifyClientId() ?? '')
 
   const loadPlaylists = useCallback(async () => {
     try {
@@ -147,17 +143,6 @@ export function ImportScreen() {
     }
   }
 
-  const handleSaveClientId = () => {
-    setSpotifyClientIdOverride(clientIdDraft)
-    setAuthError('')
-  }
-
-  const handleResetClientId = () => {
-    setSpotifyClientIdOverride(null)
-    setClientIdDraft(getConfiguredSpotifyClientId() ?? '')
-    setAuthError('')
-  }
-
   if (authLoading) {
     return (
       <section className="screen import-screen">
@@ -184,46 +169,17 @@ export function ImportScreen() {
       )}
 
       {!isAuthenticated && (
-        <>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() =>
-              startSpotifyLogin().catch((err) =>
-                setAuthError(err instanceof Error ? err.message : 'Failed to start Spotify login.'),
-              )
-            }
-          >
-            Log in with Spotify
-          </button>
-
-          <div className="import-block">
-            <div className="import-block-header">
-              <h2>Spotify app settings</h2>
-            </div>
-            <p className="app-subtitle">
-              If Spotify shows INVALID_CLIENT, paste your app Client ID from Spotify Dashboard.
-            </p>
-            <input
-              className="playlist-select"
-              type="text"
-              value={clientIdDraft}
-              onChange={(e) => setClientIdDraft(e.target.value)}
-              placeholder="Spotify Client ID"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <div className="auth-config-actions">
-              <button type="button" className="btn-secondary" onClick={handleSaveClientId}>
-                Use this Client ID
-              </button>
-              <button type="button" className="btn-secondary" onClick={handleResetClientId}>
-                Use default
-              </button>
-            </div>
-            <p className="app-subtitle">Redirect URI: {getRedirectUri()}</p>
-          </div>
-        </>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() =>
+            startSpotifyLogin().catch((err) =>
+              setAuthError(err instanceof Error ? err.message : 'Failed to start Spotify login.'),
+            )
+          }
+        >
+          Log in with Spotify
+        </button>
       )}
 
       {isAuthenticated && (
