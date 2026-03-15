@@ -232,8 +232,14 @@ async function spotifyFetch<T>(token: string, endpoint: string, init?: RequestIn
 
     if (response.status === 403) {
       const details = spotifyMessage || text || 'Forbidden'
+      if (endpoint.includes('/playlists/') && endpoint.includes('/tracks')) {
+        throw new Error(
+          `Spotify denied access to this playlist's tracks (${details}). If you pasted a playlist URL/ID, the playlist may be private or unavailable to this account. Try selecting from Your playlists first. Also confirm this account is added under app User Management and that redirect URI ${getRedirectUri()} is configured. Then log out and log in again.`,
+        )
+      }
+
       throw new Error(
-        `Spotify access was denied (${details}). Confirm this Spotify account is added under app User Management and that the app has redirect URI ${getRedirectUri()}. Then log out and log in again.`,
+        `Spotify access was denied (${details}). Confirm this Spotify account is added under app User Management and that redirect URI ${getRedirectUri()} is configured. Then log out and log in again.`,
       )
     }
 

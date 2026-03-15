@@ -139,6 +139,13 @@ export function ImportScreen() {
       }
       startSession(newSession)
     } catch (err) {
+      if (err instanceof Error && /denied access to this playlist's tracks|Spotify API request failed: 403/i.test(err.message)) {
+        const usedManualInput = !selectedPlaylistId && !!derivedId
+        if (usedManualInput) {
+          setError('This playlist cannot be read by your current account. It may be private or owned by another user. Try choosing from Your playlists instead, or make the playlist collaborative/public and re-login.')
+          return
+        }
+      }
       setError(err instanceof Error ? err.message : 'Failed to load playlist.')
     } finally {
       setLoading(false)
