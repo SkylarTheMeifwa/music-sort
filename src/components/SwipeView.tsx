@@ -77,13 +77,11 @@ export function SwipeView() {
 
   const [drag, setDrag] = useState<DragState>({ x: 0, y: 0, active: false, transitioning: false })
   const [audioProgress, setAudioProgress] = useState(0)
-  const [previewBlocked, setPreviewBlocked] = useState(false)
   const [sdkReady, setSdkReady] = useState(false)
   const [sdkFailed, setSdkFailed] = useState(false)
 
   const pointerRef = useRef<{ id: number; sx: number; sy: number } | null>(null)
   const inFlightRef = useRef(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
   const sdkPlayerRef = useRef<SpotifyPlayerLike | null>(null)
   const sdkDeviceIdRef = useRef<string>('')
 
@@ -116,29 +114,6 @@ export function SwipeView() {
     return clamp((yesDurationMs / session.targetMs) * 100, 0, 100)
   }, [session, yesDurationMs])
 
-  // ── Audio ─────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const audio = new Audio()
-    audio.loop = true
-    audio.preload = 'none'
-    audioRef.current = audio
-
-    const onTime = () => {
-      const d = audio.duration
-      setAudioProgress(Number.isFinite(d) && d > 0 ? clamp((audio.currentTime / d) * 100, 0, 100) : 0)
-    }
-    audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('loadedmetadata', onTime)
-
-    return () => {
-      audio.pause()
-      audio.src = ''
-      audio.removeEventListener('timeupdate', onTime)
-      audio.removeEventListener('loadedmetadata', onTime)
-      audioRef.current = null
-    }
-  }, [])
-
   useEffect(() => {
     let disposed = false
 
@@ -161,6 +136,7 @@ export function SwipeView() {
         sdkDeviceIdRef.current = device_id
         setSdkReady(true)
         setSdkFailed(false)
+        setAudioProgress(100)
       })
 
       sdkPlayerRef.current = player
@@ -214,37 +190,21 @@ export function SwipeView() {
         },
         body: JSON.stringify({ uris: [uri], position_ms: positionMs }),
       })
-      setPreviewBlocked(false)
+      setAudioProgress(100)
     } catch {
       setSdkFailed(true)
+      setAudioProgress(0)
     }
   }, [])
 
   useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    audio.pause()
     setAudioProgress(0)
-
-    if (!topSong?.previewUrl || session?.muted) {
-      audio.src = ''
-      if (!session?.muted && topSong?.uri && sdkReady) {
-        void playWithSdk(topSong.uri, getMiddlePositionMs(topSong.durationMs))
-      }
+    if (!topSong?.uri || session?.muted || !sdkReady) {
       return
     }
 
-    const onLoadedMetadata = () => {
-      const midpointSeconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration / 2 : 15
-      audio.currentTime = midpointSeconds
-      void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
-    }
-
-    audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true })
-    audio.src = topSong.previewUrl
-    audio.load()
-  }, [topSong?.id, topSong?.previewUrl, topSong?.uri, topSong?.durationMs, session?.muted, sdkReady, playWithSdk])
+    void playWithSdk(topSong.uri, getMiddlePositionMs(topSong.durationMs))
+  }, [topSong?.id, topSong?.uri, topSong?.durationMs, session?.muted, sdkReady, playWithSdk])
 
   useEffect(() => {
     if (!session?.muted) return
@@ -252,28 +212,6 @@ export function SwipeView() {
     if (!player) return
     void player.pause().catch(() => undefined)
   }, [session?.muted])
-
-  const handleManualPreviewPlay = () => {
-    const audio = audioRef.current
-    if (!audio || !topSong?.previewUrl) return
-    if (audio.src !== topSong.previewUrl) {
-      audio.src = topSong.previewUrl
-    }
-
-    const startAtMiddleAndPlay = () => {
-      const midpointSeconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration / 2 : 15
-      audio.currentTime = midpointSeconds
-      void audio.play().then(() => setPreviewBlocked(false)).catch(() => setPreviewBlocked(true))
-    }
-
-    if (Number.isFinite(audio.duration) && audio.duration > 0) {
-      startAtMiddleAndPlay()
-      return
-    }
-
-    audio.addEventListener('loadedmetadata', startAtMiddleAndPlay, { once: true })
-    audio.load()
-  }
 
   const handleCancel = () => {
     if (!window.confirm('Cancel current sorting and go back to import?')) return
@@ -351,7 +289,7 @@ export function SwipeView() {
           type="button"
           className="mute-btn"
           onClick={() => setMuted(!session.muted)}
-          aria-label={session.muted ? 'Unmute preview' : 'Mute preview'}
+          aria-label={session.muted ? 'Unmute playback' : 'Mute playback'}
         >
           {session.muted ? '🔇' : '🔊'}
         </button>
@@ -369,35 +307,16 @@ export function SwipeView() {
       </div>
 
       <div className="swipe-tools">
-        {topSong?.previewUrl && !session.muted && previewBlocked && (
-          <button type="button" className="btn-secondary btn-inline" onClick={handleManualPreviewPlay}>
-            Play Preview
-          </button>
-        )}
-        {!topSong?.previewUrl && !session.muted && sdkReady && (
+        {!session.muted && sdkReady && (
           <span className="helper-text">Playing with Spotify SDK</span>
         )}
-        {sdkFailed && !topSong?.previewUrl && (
+        {sdkFailed && (
           <span className="helper-text">SDK playback unavailable for this account.</span>
         )}
         <button type="button" className="btn-secondary btn-inline" onClick={handleCancel}>
           Cancel
         </button>
       </div>
-
-      {!session.muted && !topSong?.previewUrl && topSong?.embedUrl && (
-        <div className="embed-preview-wrap">
-          <iframe
-            title={`Spotify preview for ${topSong.name}`}
-            src={topSong.embedUrl}
-            width="100%"
-            height="152"
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-            loading="lazy"
-            className="embed-preview-frame"
-          />
-        </div>
-      )}
 
       {/* Card stack */}
       <div className="card-stack">

@@ -67,12 +67,15 @@ export const useAppStore = create<AppStore>()(
           let passQueueIds = prev.passQueueIds
           let view: ViewMode = s.view
 
-          if (queueIndex >= passQueueIds.length) {
-            const yesMs = calcYesDuration(songs, prev.songOrder)
-            const remaining = prev.songOrder.filter((id) => songs[id].status !== 'yes')
-            const targetReached = prev.targetMs > 0 && yesMs >= prev.targetMs
+          const yesMs = calcYesDuration(songs, prev.songOrder)
+          const targetReached = prev.targetMs > 0 && yesMs >= prev.targetMs
 
-            if (remaining.length === 0 || targetReached) {
+          if (targetReached) {
+            view = 'results'
+          } else if (queueIndex >= passQueueIds.length) {
+            const remaining = prev.songOrder.filter((id) => songs[id].status !== 'yes')
+
+            if (remaining.length === 0) {
               view = 'results'
             } else {
               pass = prev.pass + 1

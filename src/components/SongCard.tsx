@@ -93,7 +93,7 @@ export function SongCard({
               />
             </div>
             <p className="progress-label">
-              {song.previewUrl ? 'Preview' : song.embedUrl ? 'Preview available below' : 'No preview available'}
+              Spotify playback
             </p>
           </div>
         )}
