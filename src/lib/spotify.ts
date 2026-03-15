@@ -135,6 +135,7 @@ export async function startSpotifyLogin(): Promise<void> {
     client_id: clientId,
     response_type: 'code',
     redirect_uri: getRedirectUri(),
+    show_dialog: 'true',
     scope: [
       'playlist-read-private',
       'playlist-read-collaborative',
