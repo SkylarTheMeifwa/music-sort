@@ -283,13 +283,15 @@ export async function refreshSpotifyToken(refreshToken: string): Promise<Spotify
 }
 
 async function spotifyFetch<T>(token: string, endpoint: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  headers.set('Authorization', `Bearer ${token}`)
+  if (init?.body != null && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
   const response = await fetch(`${SPOTIFY_API_BASE}${endpoint}`, {
     ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...(init?.headers || {}),
-    },
+    headers,
   })
 
   if (!response.ok) {
