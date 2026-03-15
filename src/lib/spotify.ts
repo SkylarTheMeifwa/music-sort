@@ -147,6 +147,7 @@ function toSongCardData(track: SpotifyTrack, index: number): SongCardData {
     durationMs: track.duration_ms,
     imageUrl: track.album.images[0]?.url || '',
     previewUrl: track.preview_url,
+    embedUrl: null,
   }
 }
 
@@ -673,6 +674,7 @@ async function fetchTracksByIdsViaOEmbed(
         title?: string
         author_name?: string
         thumbnail_url?: string
+        iframe_url?: string
       }
 
       songs.push({
@@ -683,6 +685,7 @@ async function fetchTracksByIdsViaOEmbed(
         durationMs: 0,
         imageUrl: data.thumbnail_url || '',
         previewUrl: null,
+        embedUrl: data.iframe_url || `https://open.spotify.com/embed/track/${trackId}`,
       })
     } catch {
       // Ignore per-track failures so one bad ID doesn't abort the import.

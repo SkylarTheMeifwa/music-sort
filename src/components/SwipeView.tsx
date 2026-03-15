@@ -241,6 +241,20 @@ export function SwipeView() {
         </button>
       </div>
 
+      {!session.muted && !topSong?.previewUrl && topSong?.embedUrl && (
+        <div className="embed-preview-wrap">
+          <iframe
+            title={`Spotify preview for ${topSong.name}`}
+            src={topSong.embedUrl}
+            width="100%"
+            height="152"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            className="embed-preview-frame"
+          />
+        </div>
+      )}
+
       {/* Card stack */}
       <div className="card-stack">
         {visibleSongIds.length === 0 && (

@@ -8,6 +8,7 @@ export interface SongCardData {
   durationMs: number
   imageUrl: string
   previewUrl: string | null
+  embedUrl?: string | null
 }
 
 export interface SortedSong extends SongCardData {

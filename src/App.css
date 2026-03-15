@@ -312,6 +312,16 @@ body {
   justify-content: flex-end;
   gap: 8px;
 }
+.embed-preview-wrap {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.embed-preview-frame {
+  display: block;
+  border: 0;
+}
 
 /* Card stack */
 .card-stack {
