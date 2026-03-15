@@ -6,6 +6,7 @@ const SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
 const PKCE_VERIFIER_KEY = 'spotify_pkce_verifier'
 const TOKEN_STORAGE_KEY = 'music_sort_spotify_token_v1'
 export const LIKED_SONGS_SOURCE_ID = 'liked-songs'
+export const MANUAL_TRACKS_SOURCE_ID = 'manual-tracks'
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined
 
@@ -127,20 +128,34 @@ interface SpotifyTrackItem {
   } | null
 }
 
+interface SpotifyTrack {
+  id: string | null
+  uri: string
+  name: string
+  duration_ms: number
+  preview_url: string | null
+  artists: Array<{ name: string }>
+  album: { images: Array<{ url: string }> }
+}
+
+function toSongCardData(track: SpotifyTrack, index: number): SongCardData {
+  return {
+    id: `${track.id}_${index}`,
+    uri: track.uri,
+    name: track.name,
+    artists: track.artists.map((artist) => artist.name),
+    durationMs: track.duration_ms,
+    imageUrl: track.album.images[0]?.url || '',
+    previewUrl: track.preview_url,
+  }
+}
+
 function appendTrackItems(items: SpotifyTrackItem[], songs: SongCardData[]): void {
   for (const item of items) {
     const track = item.track
     if (!track?.id) continue
 
-    songs.push({
-      id: `${track.id}_${songs.length}`,
-      uri: track.uri,
-      name: track.name,
-      artists: track.artists.map((artist) => artist.name),
-      durationMs: track.duration_ms,
-      imageUrl: track.album.images[0]?.url || '',
-      previewUrl: track.preview_url,
-    })
+    songs.push(toSongCardData(track, songs.length))
   }
 }
 
@@ -439,15 +454,7 @@ export async function fetchLikedTracks(token: string): Promise<SongCardData[]> {
       const track = item.track
       if (!track?.id) continue
 
-      songs.push({
-        id: `${track.id}_${songs.length}`,
-        uri: track.uri,
-        name: track.name,
-        artists: track.artists.map((artist) => artist.name),
-        durationMs: track.duration_ms,
-        imageUrl: track.album.images[0]?.url || '',
-        previewUrl: track.preview_url,
-      })
+      songs.push(toSongCardData(track, songs.length))
     }
 
     if (!page.next) {
@@ -532,6 +539,61 @@ export async function createSpotifyPlaylistFromTracks(
     await addTracksToPlaylist(token, playlist.id, options.uris)
   }
   return playlist
+}
+
+export function extractSpotifyTrackIds(input: string): string[] {
+  const tokens = input
+    .split(/[\s,]+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+
+  const ids: string[] = []
+  const seen = new Set<string>()
+
+  for (const token of tokens) {
+    let trackId: string | null = null
+
+    if (/^[a-zA-Z0-9]{22}$/.test(token)) {
+      trackId = token
+    } else {
+      try {
+        const url = new URL(token)
+        const parts = url.pathname.split('/').filter(Boolean)
+        const trackIndex = parts.findIndex((part) => part === 'track')
+        if (trackIndex >= 0 && parts[trackIndex + 1]) {
+          trackId = parts[trackIndex + 1]
+        }
+      } catch {
+        trackId = null
+      }
+    }
+
+    if (trackId && !seen.has(trackId)) {
+      seen.add(trackId)
+      ids.push(trackId)
+    }
+  }
+
+  return ids
+}
+
+export async function fetchTracksByIds(token: string, trackIds: string[]): Promise<SongCardData[]> {
+  const songs: SongCardData[] = []
+
+  for (let i = 0; i < trackIds.length; i += 50) {
+    const chunk = trackIds.slice(i, i + 50)
+    const page = await spotifyFetch<{ tracks: Array<SpotifyTrack | null> }>(
+      token,
+      `/tracks?ids=${encodeURIComponent(chunk.join(','))}&market=from_token`,
+    )
+
+    for (const track of page.tracks) {
+      if (!track?.id) continue
+      songs.push(toSongCardData(track, songs.length))
+    }
+  }
+
+  return songs
 }
 
 export function extractSpotifyPlaylistId(input: string): string | null {

@@ -26,7 +26,7 @@ export interface SwipeDecision {
 export interface SessionState {
   playlistId: string
   playlistName: string
-  sourceType?: 'playlist' | 'liked'
+  sourceType?: 'playlist' | 'liked' | 'tracks'
   pass: number
   queueIndex: number
   passQueueIds: string[]
