@@ -13,6 +13,7 @@ export function ResultsScreen() {
   const [removeBusy, setRemoveBusy] = useState(false)
   const [removeMsg, setRemoveMsg] = useState('')
   const [copied, setCopied] = useState(false)
+  const canRemoveFromSpotify = session?.sourceType !== 'liked'
 
   const stats = useMemo(() => {
     if (!session) return { yes: 0, maybe: 0, no: 0, yesDuration: 0 }
@@ -147,14 +148,22 @@ export function ResultsScreen() {
                 {copied ? 'Copied!' : 'Copy to Clipboard'}
               </button>
 
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={removeBusy}
-                onClick={() => void handleRemoveFromSpotify()}
-              >
-                {removeBusy ? 'Removing…' : 'Remove from Spotify Playlist'}
-              </button>
+              {canRemoveFromSpotify && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={removeBusy}
+                  onClick={() => void handleRemoveFromSpotify()}
+                >
+                  {removeBusy ? 'Removing…' : 'Remove from Spotify Playlist'}
+                </button>
+              )}
+
+              {!canRemoveFromSpotify && (
+                <p className="modal-hint">
+                  Remove from Spotify is only available for playlist imports, not Liked Songs.
+                </p>
+              )}
 
               {removeMsg && <p className="error-msg">{removeMsg}</p>}
 

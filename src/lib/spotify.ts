@@ -5,6 +5,7 @@ const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
 const PKCE_VERIFIER_KEY = 'spotify_pkce_verifier'
 const TOKEN_STORAGE_KEY = 'music_sort_spotify_token_v1'
+export const LIKED_SONGS_SOURCE_ID = 'liked-songs'
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined
 
@@ -30,6 +31,7 @@ function getRequiredScopes(): string[] {
     'playlist-read-collaborative',
     'playlist-modify-private',
     'playlist-modify-public',
+    'user-library-read',
     'user-read-private',
   ]
 }
@@ -331,6 +333,53 @@ export async function fetchPlaylistTracks(token: string, playlistId: string): Pr
       if (!track?.id) {
         continue
       }
+
+      songs.push({
+        id: `${track.id}_${songs.length}`,
+        uri: track.uri,
+        name: track.name,
+        artists: track.artists.map((artist) => artist.name),
+        durationMs: track.duration_ms,
+        imageUrl: track.album.images[0]?.url || '',
+        previewUrl: track.preview_url,
+      })
+    }
+
+    if (!page.next) {
+      nextEndpoint = ''
+      continue
+    }
+
+    const nextUrl = new URL(page.next)
+    nextEndpoint = `${nextUrl.pathname}${nextUrl.search}`.replace('/v1', '')
+  }
+
+  return songs
+}
+
+export async function fetchLikedTracks(token: string): Promise<SongCardData[]> {
+  const songs: SongCardData[] = []
+  let nextEndpoint = '/me/tracks?limit=50'
+
+  while (nextEndpoint) {
+    const page = await spotifyFetch<{
+      items: Array<{
+        track: {
+          id: string | null
+          uri: string
+          name: string
+          duration_ms: number
+          preview_url: string | null
+          artists: Array<{ name: string }>
+          album: { images: Array<{ url: string }> }
+        } | null
+      }>
+      next: string | null
+    }>(token, nextEndpoint)
+
+    for (const item of page.items) {
+      const track = item.track
+      if (!track?.id) continue
 
       songs.push({
         id: `${track.id}_${songs.length}`,

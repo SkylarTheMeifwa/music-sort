@@ -4,11 +4,13 @@ import {
   exchangeCodeForToken,
   extractSpotifyPlaylistId,
   fetchCurrentSpotifyProfile,
+  fetchLikedTracks,
   fetchPlaylistMeta,
   fetchPlaylistTracks,
   fetchUserPlaylists,
   getStoredScope,
   getValidAccessToken,
+  LIKED_SONGS_SOURCE_ID,
   readStoredToken,
   startSpotifyLogin,
   writeStoredToken,
@@ -141,6 +143,7 @@ export function ImportScreen() {
       const newSession: SessionState = {
         playlistId,
         playlistName: meta.name,
+        sourceType: 'playlist',
         pass: 1,
         queueIndex: 0,
         passQueueIds: [...songOrder],
@@ -160,6 +163,45 @@ export function ImportScreen() {
         }
       }
       setError(err instanceof Error ? err.message : 'Failed to load playlist.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLoadLikedSongs = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const token = await getValidAccessToken()
+      const tracks = await fetchLikedTracks(token)
+
+      if (tracks.length === 0) {
+        setError('No saved tracks found in Liked Songs.')
+        return
+      }
+
+      const songs = Object.fromEntries(
+        tracks.map((track) => [track.id, { ...track, status: 'unknown' as const }]),
+      )
+      const songOrder = tracks.map((track) => track.id)
+      const targetMs = parseMinutesToMs(targetMinutes)
+
+      const newSession: SessionState = {
+        playlistId: LIKED_SONGS_SOURCE_ID,
+        playlistName: 'Liked Songs',
+        sourceType: 'liked',
+        pass: 1,
+        queueIndex: 0,
+        passQueueIds: [...songOrder],
+        targetMs,
+        muted: false,
+        songOrder,
+        songs,
+        history: [],
+      }
+      startSession(newSession)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load Liked Songs.')
     } finally {
       setLoading(false)
     }
@@ -263,6 +305,16 @@ export function ImportScreen() {
               </button>
             </div>
           )}
+
+          <div className="import-block">
+            <div className="import-block-header">
+              <h2>Other source</h2>
+            </div>
+            <p className="app-subtitle">Import your saved tracks if this Spotify account has no playlists.</p>
+            <button type="button" className="btn-secondary" disabled={loading} onClick={() => void handleLoadLikedSongs()}>
+              {loading ? 'Loading…' : 'Use Liked Songs'}
+            </button>
+          </div>
 
           <div className="import-divider">or paste a Spotify link / ID</div>
 
