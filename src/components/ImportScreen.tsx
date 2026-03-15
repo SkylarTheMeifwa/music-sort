@@ -172,7 +172,11 @@ export function ImportScreen() {
         <button
           type="button"
           className="btn-primary"
-          onClick={() => void startSpotifyLogin()}
+          onClick={() =>
+            startSpotifyLogin().catch((err) =>
+              setAuthError(err instanceof Error ? err.message : 'Failed to start Spotify login.'),
+            )
+          }
         >
           Log in with Spotify
         </button>
