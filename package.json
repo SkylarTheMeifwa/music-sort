@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dotenv": "^17.3.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "spotify-web-api-node": "^5.0.2",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
@@ -27,5 +29,18 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.0"
-  }
+  },
+  "description": "A mobile-first PWA that lets you swipe through a Spotify playlist — Tinder-style — to build the perfect playlist length.",
+  "main": "eslint.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SkylarTheMeifwa/music-sort.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SkylarTheMeifwa/music-sort/issues"
+  },
+  "homepage": "https://github.com/SkylarTheMeifwa/music-sort#readme"
 }

@@ -11,6 +11,16 @@ export interface SongCardData {
   embedUrl?: string | null
 }
 
+// Structure for song data file
+export interface SongData {
+  id: string;
+  name: string;
+  artists: string[];
+  albumCover: string;
+  durationMs: number;
+  previewUrl: string | null;
+}
+
 export interface SortedSong extends SongCardData {
   status: SongStatus
 }

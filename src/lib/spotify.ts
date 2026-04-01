@@ -1,3 +1,17 @@
+import type { SongData } from '../types';
+// Fetches song data for a list of track IDs and maps to SongData type
+export async function fetchSpotifyTracks(trackIds: string[]): Promise<SongData[]> {
+  const token = await getValidAccessToken();
+  const songs = await fetchTracksByIds(token, trackIds);
+  return songs.map((song) => ({
+    id: song.id,
+    name: song.name,
+    artists: song.artists,
+    albumCover: song.imageUrl,
+    durationMs: song.durationMs,
+    previewUrl: song.previewUrl,
+  }));
+}
 import type { SongCardData } from '../types'
 
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize'

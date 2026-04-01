@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { clamp, formatDurationHm } from '../lib/format'
-import { getValidAccessToken } from '../lib/spotify'
+import { getValidAccessToken, startSpotifyLogin, readStoredToken } from '../lib/spotify'
 import { useAppStore } from '../store'
 import type { SortedSong } from '../types'
 import { SongCard } from './SongCard'
+import { clamp, formatDurationHm } from '../lib/format'
 
 const SWIPE_X = 100
 const SWIPE_Y = 100
@@ -91,20 +91,39 @@ export function SwipeView() {
   const swipe = useAppStore((s) => s.swipe)
   const undo = useAppStore((s) => s.undo)
   const setMuted = useAppStore((s) => s.setMuted)
-  const clearSession = useAppStore((s) => s.clearSession)
   const patchSongMeta = useAppStore((s) => s.patchSongMeta)
 
   const [drag, setDrag] = useState<DragState>({ x: 0, y: 0, active: false, transitioning: false })
-  const [audioProgress, setAudioProgress] = useState(0)
-  const [sdkReady, setSdkReady] = useState(false)
-  const [sdkFailed, setSdkFailed] = useState(false)
-  const [playbackSnapshot, setPlaybackSnapshot] = useState<{
-    uri: string
-    positionMs: number
-    durationMs: number
-    paused: boolean
-    receivedAt: number
-  } | null>(null)
+  const [audioProgress, setAudioProgress] = useState<number>(0)
+  const [sdkReady, setSdkReady] = useState<boolean>(false)
+  const [sdkFailed, setSdkFailed] = useState<boolean>(false)
+  const [playbackSnapshot, setPlaybackSnapshot] = useState<null | {
+    uri: string;
+    positionMs: number;
+    durationMs: number;
+    paused: boolean;
+    receivedAt: number;
+  }>(null)
+  const [sessionExpired, setSessionExpired] = useState<boolean>(false)
+
+  // Monitor Spotify session status
+  useEffect(() => {
+    const checkSession = () => {
+      try {
+        const token = readStoredToken()
+        if (!token || token.expiresAt < Date.now()) {
+          setSessionExpired(true)
+        } else {
+          setSessionExpired(false)
+        }
+      } catch {
+        setSessionExpired(true)
+      }
+    }
+    checkSession()
+    const timer = setInterval(checkSession, 5000)
+    return () => clearInterval(timer)
+  }, [])
 
   const pointerRef = useRef<{ id: number; sx: number; sy: number } | null>(null)
   const inFlightRef = useRef(false)
@@ -244,11 +263,9 @@ export function SwipeView() {
   }, [])
 
   const playWithSdk = useCallback(async (uri: string, positionMs: number, durationMs: number) => {
-    const deviceId = sdkDeviceIdRef.current
-    if (!deviceId) return
-
     try {
       const token = await getValidAccessToken()
+      const deviceId = sdkDeviceIdRef.current
       await fetch('https://api.spotify.com/v1/me/player', {
         method: 'PUT',
         headers: {
@@ -330,8 +347,6 @@ export function SwipeView() {
   }, [session?.muted])
 
   const handleCancel = () => {
-    if (!window.confirm('Cancel current sorting and go back to import?')) return
-    clearSession()
   }
 
   // ── Swipe commit ──────────────────────────────────────────────────────────
@@ -393,7 +408,14 @@ export function SwipeView() {
 
   const cue = getCue(drag.x, drag.y)
 
-  if (!session) return null
+  if (!session) {
+    return (
+      <section className="screen swipe-screen">
+        <h2>No session found</h2>
+        <p>Please import or generate a song data file and start a session from the import screen.</p>
+      </section>
+    )
+  }
 
   return (
     <section className="screen swipe-screen">
@@ -401,6 +423,7 @@ export function SwipeView() {
       <header className="swipe-header">
         <span className="pass-badge">Pass {session.pass}</span>
         <span className="remaining-count">{remainingCount} songs left</span>
+        <span className="song-count">{session.songOrder.length} songs loaded</span>
         <button
           type="button"
           className="mute-btn"
@@ -409,6 +432,16 @@ export function SwipeView() {
         >
           {session.muted ? '🔇' : '🔊'}
         </button>
+        {sessionExpired && (
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginLeft: 12 }}
+            onClick={() => startSpotifyLogin()}
+          >
+            Relogin to Spotify
+          </button>
+        )}
       </header>
 
       {/* Duration progress */}
