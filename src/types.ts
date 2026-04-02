@@ -18,7 +18,7 @@ export interface SongData {
   artists: string[];
   albumCover: string;
   durationMs: number;
-  previewUrl: string | null;
+  previewUrl?: string | null;
 }
 
 export interface SortedSong extends SongCardData {

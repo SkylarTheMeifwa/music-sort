@@ -20,7 +20,10 @@ export function ImportScreen() {
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null
-    const songDataPaths = ['/song-data.json', '/song%20data.json', '/song%20data']
+    const base = import.meta.env.BASE_URL
+    const songDataPaths = ['song-data.json', 'song%20data.json', 'song%20data'].map(
+      (name) => new URL(name, base).toString(),
+    )
 
     const isValidSongData = (value: unknown): value is SongData[] => {
       if (!Array.isArray(value)) return false
@@ -121,7 +124,7 @@ export function ImportScreen() {
               artists: track.artists,
               durationMs: track.durationMs,
               imageUrl: track.albumCover,
-              previewUrl: track.previewUrl,
+              previewUrl: track.previewUrl ?? null,
               status: 'unknown' as SongStatus,
             }])
           );
