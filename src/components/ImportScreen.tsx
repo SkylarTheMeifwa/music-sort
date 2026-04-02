@@ -15,25 +15,60 @@ export function ImportScreen() {
   const [targetMinutes, setTargetMinutes] = useState('60')
   const [songDataPresent, setSongDataPresent] = useState(false)
   const [songData, setSongData] = useState<SongData[] | null>(null)
+  const [songDataSource, setSongDataSource] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null
+    const songDataPaths = ['/song-data.json', '/song%20data.json', '/song%20data']
+
+    const isValidSongData = (value: unknown): value is SongData[] => {
+      if (!Array.isArray(value)) return false
+      return value.every((item) => {
+        if (!item || typeof item !== 'object') return false
+        const row = item as Partial<SongData>
+        return (
+          typeof row.id === 'string' &&
+          typeof row.name === 'string' &&
+          Array.isArray(row.artists) &&
+          row.artists.every((a) => typeof a === 'string') &&
+          typeof row.albumCover === 'string' &&
+          typeof row.durationMs === 'number'
+        )
+      })
+    }
+
     const checkSongData = async () => {
-      try {
-        const resp = await fetch('/song-data.json')
-        if (resp.ok) {
-          const data = await resp.json()
+      for (const path of songDataPaths) {
+        try {
+          const resp = await fetch(`${path}?t=${Date.now()}`, { cache: 'no-store' })
+          if (!resp.ok) continue
+
+          const data: unknown = await resp.json()
+          if (!isValidSongData(data)) {
+            setSongDataPresent(false)
+            setSongData(null)
+            setSongDataSource(null)
+            setLoadError('Song data file was found, but JSON shape is invalid.')
+            return
+          }
+
           setSongDataPresent(true)
           setSongData(data)
-        } else {
-          setSongDataPresent(false)
-          setSongData(null)
+          setSongDataSource(path)
+          setLoadError(null)
+          return
+        } catch {
+          // Continue trying alternate file names.
         }
-      } catch {
-        setSongDataPresent(false)
-        setSongData(null)
       }
+
+      setSongDataPresent(false)
+      setSongData(null)
+      setSongDataSource(null)
+      setLoadError(null)
     }
+
     checkSongData()
     timer = setInterval(checkSongData, 2000)
     return () => { if (timer) clearInterval(timer) }
@@ -49,7 +84,9 @@ export function ImportScreen() {
       <section className="screen import-screen">
         <h1 className="app-title">Music Sort</h1>
         <p className="app-subtitle">Place your <b>song-data.json</b> file in <code>public/song-data.json</code> to begin.</p>
+        <p className="helper-text">Also accepted: <code>song data.json</code> or <code>song data</code>.</p>
         <p className="helper-text">The app will auto-refresh when the file is added.</p>
+        {loadError && <p className="helper-text">{loadError}</p>}
       </section>
     );
   }
@@ -57,7 +94,7 @@ export function ImportScreen() {
   return (
     <section className="screen import-screen">
       <h1 className="app-title">Music Sort</h1>
-      <p className="app-subtitle">{songData ? `${songData.length} songs loaded from song-data.json.` : 'Loading song-data.json...'}</p>
+      <p className="app-subtitle">{songData ? `${songData.length} songs loaded from ${songDataSource ?? 'song data file'}.` : 'Loading song data file...'}</p>
       <div className="target-row">
         <label htmlFor="targetMin">Target duration (HH:MM or minutes)</label>
         <input
