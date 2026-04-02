@@ -3,7 +3,7 @@
    Cache-first for app shell, network-first for Spotify API requests.
    ────────────────────────────────────────────────────────────────────────── */
 
-const CACHE = 'music-sort-v2'
+const CACHE = 'music-sort-v3'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

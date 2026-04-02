@@ -20,9 +20,10 @@ export function ImportScreen() {
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null
-    const base = import.meta.env.BASE_URL
+    const base = import.meta.env.BASE_URL || '/'
+    const normalizedBase = base.endsWith('/') ? base : `${base}/`
     const songDataPaths = ['song-data.json', 'song%20data.json', 'song%20data'].map(
-      (name) => new URL(name, base).toString(),
+      (name) => `${normalizedBase}${name}`,
     )
 
     const isValidSongData = (value: unknown): value is SongData[] => {
