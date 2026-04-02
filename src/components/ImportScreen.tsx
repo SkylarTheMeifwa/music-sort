@@ -20,7 +20,7 @@ export function ImportScreen() {
     let timer: ReturnType<typeof setInterval> | null = null
     const checkSongData = async () => {
       try {
-        const resp = await fetch('/song%20data')
+        const resp = await fetch('/song-data.json')
         if (resp.ok) {
           const data = await resp.json()
           setSongDataPresent(true)
@@ -48,7 +48,7 @@ export function ImportScreen() {
     return (
       <section className="screen import-screen">
         <h1 className="app-title">Music Sort</h1>
-        <p className="app-subtitle">Paste your <b>song data</b> file into <code>public/song data</code> to begin.</p>
+        <p className="app-subtitle">Place your <b>song-data.json</b> file in <code>public/song-data.json</code> to begin.</p>
         <p className="helper-text">The app will auto-refresh when the file is added.</p>
       </section>
     );
@@ -57,7 +57,7 @@ export function ImportScreen() {
   return (
     <section className="screen import-screen">
       <h1 className="app-title">Music Sort</h1>
-      <p className="app-subtitle">{songData ? `${songData.length} songs loaded from song data file.` : 'Loading song data...'}</p>
+      <p className="app-subtitle">{songData ? `${songData.length} songs loaded from song-data.json.` : 'Loading song-data.json...'}</p>
       <div className="target-row">
         <label htmlFor="targetMin">Target duration (HH:MM or minutes)</label>
         <input

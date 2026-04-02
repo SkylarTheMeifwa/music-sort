@@ -38,7 +38,7 @@ const GenerateSongData: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'song data';
+    a.download = 'song-data.json';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -66,7 +66,7 @@ const GenerateSongData: React.FC = () => {
       {songData.length > 0 && !downloading && (
         <div style={{ marginTop: 16 }}>
           <div>{songData.length} songs in file</div>
-          <button onClick={handleDownload}>Download song data</button>
+          <button onClick={handleDownload}>Download song-data.json</button>
         </div>
       )}
       {error && <div style={{ color: 'red', marginTop: 16 }}>{error}</div>}
